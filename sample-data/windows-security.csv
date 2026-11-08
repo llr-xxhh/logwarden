@@ -1,0 +1,35 @@
+TimeCreated,EventID,Computer,Channel,LevelName,TargetUserName,SubjectUserName,IpAddress,LogonType,NewProcessName,ParentImage,CommandLine,TargetFilename,ServiceName,Message
+2026-11-05T11:30:00.000+08:00,4625,WIN-CLIENT-07,Security,信息,administrator,,198.51.100.77,3,,,,,,账户登录失败：administrator
+2026-11-05T11:30:11.000+08:00,4625,WIN-CLIENT-07,Security,信息,admin,,198.51.100.77,3,,,,,,账户登录失败：admin
+2026-11-05T11:30:34.000+08:00,4625,WIN-CLIENT-07,Security,信息,test,,198.51.100.77,3,,,,,,账户登录失败：test
+2026-11-05T11:30:50.000+08:00,4625,WIN-CLIENT-07,Security,信息,guest,,198.51.100.77,3,,,,,,账户登录失败：guest
+2026-11-05T11:31:09.000+08:00,4625,WIN-CLIENT-07,Security,信息,finance,,198.51.100.77,3,,,,,,账户登录失败：finance
+2026-11-05T11:31:31.000+08:00,4625,WIN-CLIENT-07,Security,信息,administrator,,198.51.100.77,3,,,,,,账户登录失败：administrator
+2026-11-05T11:31:51.000+08:00,4625,WIN-CLIENT-07,Security,信息,admin,,198.51.100.77,3,,,,,,账户登录失败：admin
+2026-11-05T11:32:09.000+08:00,4625,WIN-CLIENT-07,Security,信息,test,,198.51.100.77,3,,,,,,账户登录失败：test
+2026-11-05T11:32:21.000+08:00,4625,WIN-CLIENT-07,Security,信息,guest,,198.51.100.77,3,,,,,,账户登录失败：guest
+2026-11-05T11:32:34.000+08:00,4625,WIN-CLIENT-07,Security,信息,finance,,198.51.100.77,3,,,,,,账户登录失败：finance
+2026-11-05T11:32:47.000+08:00,4625,WIN-CLIENT-07,Security,信息,administrator,,198.51.100.77,3,,,,,,账户登录失败：administrator
+2026-11-05T11:33:06.000+08:00,4625,WIN-CLIENT-07,Security,信息,admin,,198.51.100.77,3,,,,,,账户登录失败：admin
+2026-11-05T11:33:17.000+08:00,4625,WIN-CLIENT-07,Security,信息,test,,198.51.100.77,3,,,,,,账户登录失败：test
+2026-11-05T11:33:28.000+08:00,4625,WIN-CLIENT-07,Security,信息,guest,,198.51.100.77,3,,,,,,账户登录失败：guest
+2026-11-05T11:33:45.000+08:00,4625,WIN-CLIENT-07,Security,信息,finance,,198.51.100.77,3,,,,,,账户登录失败：finance
+2026-11-05T11:34:09.000+08:00,4625,WIN-CLIENT-07,Security,信息,administrator,,198.51.100.77,3,,,,,,账户登录失败：administrator
+2026-11-05T11:34:32.000+08:00,4625,WIN-CLIENT-07,Security,信息,admin,,198.51.100.77,3,,,,,,账户登录失败：admin
+2026-11-05T11:34:56.000+08:00,4625,WIN-CLIENT-07,Security,信息,test,,198.51.100.77,3,,,,,,账户登录失败：test
+2026-11-05T11:35:15.000+08:00,4625,WIN-CLIENT-07,Security,信息,guest,,198.51.100.77,3,,,,,,账户登录失败：guest
+2026-11-05T11:35:36.000+08:00,4625,WIN-CLIENT-07,Security,信息,finance,,198.51.100.77,3,,,,,,账户登录失败：finance
+2026-11-05T11:35:50.000+08:00,4625,WIN-CLIENT-07,Security,信息,administrator,,198.51.100.77,3,,,,,,账户登录失败：administrator
+2026-11-05T11:36:09.000+08:00,4625,WIN-CLIENT-07,Security,信息,admin,,198.51.100.77,3,,,,,,账户登录失败：admin
+2026-11-05T11:36:20.000+08:00,4625,WIN-CLIENT-07,Security,信息,test,,198.51.100.77,3,,,,,,账户登录失败：test
+2026-11-05T11:36:45.000+08:00,4625,WIN-CLIENT-07,Security,信息,guest,,198.51.100.77,3,,,,,,账户登录失败：guest
+2026-11-05T11:37:08.000+08:00,4625,WIN-CLIENT-07,Security,信息,finance,,198.51.100.77,3,,,,,,账户登录失败：finance
+2026-11-05T11:37:21.000+08:00,4625,WIN-CLIENT-07,Security,信息,administrator,,198.51.100.77,3,,,,,,账户登录失败：administrator
+2026-11-05T11:37:32.000+08:00,4625,WIN-CLIENT-07,Security,信息,admin,,198.51.100.77,3,,,,,,账户登录失败：admin
+2026-11-05T11:37:43.000+08:00,4625,WIN-CLIENT-07,Security,信息,test,,198.51.100.77,3,,,,,,账户登录失败：test
+2026-11-05T11:38:00.000+08:00,4624,WIN-CLIENT-07,Security,信息,administrator,,198.51.100.77,3,,,,,,账户登录成功：administrator，登录类型 3（网络）
+2026-11-05T11:40:00.000+08:00,4688,WIN-CLIENT-07,Security,信息,,administrator,,,C:\Windows\System32\WindowsPowerShell\v1.0\powershell.exe,C:\Windows\System32\cmd.exe,powershell.exe -nop -w hidden -enc SQBFAFgAKABOAGUAdwAtAE8AYgBqAGUAYwB0ACAA,,,已创建新进程
+2026-11-05T11:44:00.000+08:00,4720,WIN-CLIENT-07,Security,信息,svc_update,administrator,,,,,,,,已创建用户账户：svc_update
+2026-11-05T11:48:00.000+08:00,4726,WIN-CLIENT-07,Security,信息,svc_update,administrator,,,,,,,,已删除用户账户
+2026-11-05T11:52:00.000+08:00,7045,WIN-CLIENT-07,System,信息,,SYSTEM,,,,,,,WindowsUpdateSvc,已安装服务 WindowsUpdateSvc，映像路径 C:\Windows\Temp\wusvc.exe
+2026-11-05T12:00:00.000+08:00,4688,WIN-CLIENT-07,Security,信息,,SYSTEM,,,C:\Windows\Temp\wusvc.exe,C:\Windows\System32\services.exe,C:\Windows\Temp\wusvc.exe -k net,,,已创建新进程

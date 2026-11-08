@@ -1,0 +1,208 @@
+Nov  5 10:05:00 web-prod-01 sshd[2753]: Failed password for invalid user test from 203.0.113.45 port 37575 ssh2
+Nov  5 10:05:06 web-prod-01 sshd[27602]: Failed password for invalid user test from 203.0.113.45 port 52579 ssh2
+Nov  5 10:05:13 web-prod-01 sshd[24950]: Failed password for invalid user postgres from 203.0.113.45 port 40973 ssh2
+Nov  5 10:05:22 web-prod-01 sshd[30105]: Failed password for invalid user postgres from 203.0.113.45 port 58031 ssh2
+Nov  5 10:05:35 web-prod-01 sshd[23321]: Failed password for invalid user oracle from 203.0.113.45 port 39667 ssh2
+Nov  5 10:05:43 web-prod-01 sshd[2074]: Failed password for invalid user admin from 203.0.113.45 port 39066 ssh2
+Nov  5 10:05:50 web-prod-01 sshd[23033]: Failed password for invalid user oracle from 203.0.113.45 port 60278 ssh2
+Nov  5 10:05:58 web-prod-01 sshd[13761]: Failed password for invalid user root from 203.0.113.45 port 40278 ssh2
+Nov  5 10:06:08 web-prod-01 sshd[12577]: Failed password for invalid user root from 203.0.113.45 port 56822 ssh2
+Nov  5 10:06:18 web-prod-01 sshd[26572]: Failed password for www-data from 203.0.113.45 port 49182 ssh2
+Nov  5 10:06:27 web-prod-01 sshd[30612]: Failed password for invalid user root from 203.0.113.45 port 41142 ssh2
+Nov  5 10:06:36 web-prod-01 sshd[10873]: Failed password for invalid user admin from 203.0.113.45 port 51481 ssh2
+Nov  5 10:06:41 web-prod-01 sshd[29468]: Failed password for ubuntu from 203.0.113.45 port 46105 ssh2
+Nov  5 10:06:51 web-prod-01 sshd[20315]: Failed password for www-data from 203.0.113.45 port 49732 ssh2
+Nov  5 10:07:02 web-prod-01 sshd[13986]: Failed password for invalid user postgres from 203.0.113.45 port 59132 ssh2
+Nov  5 10:07:14 web-prod-01 sshd[12729]: Failed password for invalid user oracle from 203.0.113.45 port 52574 ssh2
+Nov  5 10:07:28 web-prod-01 sshd[9483]: Failed password for invalid user admin from 203.0.113.45 port 55383 ssh2
+Nov  5 10:07:39 web-prod-01 sshd[20975]: Failed password for invalid user test from 203.0.113.45 port 50355 ssh2
+Nov  5 10:07:51 web-prod-01 sshd[2428]: Failed password for invalid user oracle from 203.0.113.45 port 30098 ssh2
+Nov  5 10:08:03 web-prod-01 sshd[1941]: Failed password for invalid user admin from 203.0.113.45 port 34813 ssh2
+Nov  5 10:08:11 web-prod-01 sshd[19555]: Failed password for invalid user postgres from 203.0.113.45 port 31893 ssh2
+Nov  5 10:08:21 web-prod-01 sshd[29465]: Failed password for invalid user test from 203.0.113.45 port 49680 ssh2
+Nov  5 10:08:27 web-prod-01 sshd[5133]: Failed password for invalid user test from 203.0.113.45 port 43812 ssh2
+Nov  5 10:08:40 web-prod-01 sshd[5640]: Failed password for invalid user admin from 203.0.113.45 port 52444 ssh2
+Nov  5 10:08:51 web-prod-01 sshd[12314]: Failed password for invalid user oracle from 203.0.113.45 port 55509 ssh2
+Nov  5 10:09:02 web-prod-01 sshd[14523]: Failed password for invalid user root from 203.0.113.45 port 51806 ssh2
+Nov  5 10:09:14 web-prod-01 sshd[3030]: Failed password for invalid user test from 203.0.113.45 port 63430 ssh2
+Nov  5 10:09:20 web-prod-01 sshd[2538]: Failed password for www-data from 203.0.113.45 port 60402 ssh2
+Nov  5 10:09:28 web-prod-01 sshd[22588]: Failed password for ubuntu from 203.0.113.45 port 63103 ssh2
+Nov  5 10:09:39 web-prod-01 sshd[13522]: Failed password for invalid user postgres from 203.0.113.45 port 57890 ssh2
+Nov  5 10:09:48 web-prod-01 sshd[15302]: Failed password for invalid user test from 203.0.113.45 port 46554 ssh2
+Nov  5 10:09:53 web-prod-01 sshd[10278]: Failed password for invalid user admin from 203.0.113.45 port 61047 ssh2
+Nov  5 10:10:00 web-prod-01 sshd[31903]: Failed password for invalid user oracle from 203.0.113.45 port 43917 ssh2
+Nov  5 10:10:09 web-prod-01 sshd[10151]: Failed password for invalid user oracle from 203.0.113.45 port 36570 ssh2
+Nov  5 10:10:22 web-prod-01 sshd[16543]: Failed password for www-data from 203.0.113.45 port 39923 ssh2
+Nov  5 10:10:27 web-prod-01 sshd[5183]: Failed password for invalid user test from 203.0.113.45 port 47176 ssh2
+Nov  5 10:10:32 web-prod-01 sshd[22587]: Failed password for invalid user postgres from 203.0.113.45 port 55775 ssh2
+Nov  5 10:10:44 web-prod-01 sshd[26967]: Failed password for ubuntu from 203.0.113.45 port 42514 ssh2
+Nov  5 10:10:50 web-prod-01 sshd[2542]: Failed password for invalid user postgres from 203.0.113.45 port 33609 ssh2
+Nov  5 10:10:58 web-prod-01 sshd[9041]: Failed password for invalid user root from 203.0.113.45 port 61533 ssh2
+Nov  5 10:11:10 web-prod-01 sshd[23056]: Failed password for invalid user postgres from 203.0.113.45 port 50153 ssh2
+Nov  5 10:11:24 web-prod-01 sshd[18399]: Failed password for invalid user root from 203.0.113.45 port 42509 ssh2
+Nov  5 10:11:33 web-prod-01 sshd[22330]: Failed password for invalid user admin from 203.0.113.45 port 45623 ssh2
+Nov  5 10:11:45 web-prod-01 sshd[2279]: Failed password for www-data from 203.0.113.45 port 63458 ssh2
+Nov  5 10:11:52 web-prod-01 sshd[24053]: Failed password for www-data from 203.0.113.45 port 43886 ssh2
+Nov  5 10:12:00 web-prod-01 sshd[28733]: Failed password for www-data from 203.0.113.45 port 53503 ssh2
+Nov  5 10:12:13 web-prod-01 sshd[9391]: Failed password for invalid user postgres from 203.0.113.45 port 30086 ssh2
+Nov  5 10:12:21 web-prod-01 sshd[2597]: Failed password for invalid user root from 203.0.113.45 port 63202 ssh2
+Nov  5 10:12:35 web-prod-01 sshd[28912]: Failed password for invalid user test from 203.0.113.45 port 51452 ssh2
+Nov  5 10:12:41 web-prod-01 sshd[8251]: Failed password for invalid user test from 203.0.113.45 port 42591 ssh2
+Nov  5 10:12:46 web-prod-01 sshd[2157]: Failed password for ubuntu from 203.0.113.45 port 31276 ssh2
+Nov  5 10:13:00 web-prod-01 sshd[3289]: Failed password for invalid user test from 203.0.113.45 port 46286 ssh2
+Nov  5 10:13:09 web-prod-01 sshd[18023]: Failed password for invalid user test from 203.0.113.45 port 35242 ssh2
+Nov  5 10:13:14 web-prod-01 sshd[2472]: Failed password for invalid user root from 203.0.113.45 port 47290 ssh2
+Nov  5 10:13:19 web-prod-01 sshd[18804]: Failed password for invalid user test from 203.0.113.45 port 55697 ssh2
+Nov  5 10:13:29 web-prod-01 sshd[8191]: Failed password for invalid user oracle from 203.0.113.45 port 55613 ssh2
+Nov  5 10:13:43 web-prod-01 sshd[31881]: Failed password for invalid user postgres from 203.0.113.45 port 55563 ssh2
+Nov  5 10:13:57 web-prod-01 sshd[20326]: Failed password for www-data from 203.0.113.45 port 32497 ssh2
+Nov  5 10:14:04 web-prod-01 sshd[28380]: Failed password for invalid user test from 203.0.113.45 port 34961 ssh2
+Nov  5 10:14:10 web-prod-01 sshd[1912]: Failed password for invalid user oracle from 203.0.113.45 port 58724 ssh2
+Nov  5 10:14:15 web-prod-01 sshd[12900]: Failed password for ubuntu from 203.0.113.45 port 56056 ssh2
+Nov  5 10:14:21 web-prod-01 sshd[1580]: Failed password for invalid user root from 203.0.113.45 port 63926 ssh2
+Nov  5 10:14:34 web-prod-01 sshd[15180]: Failed password for www-data from 203.0.113.45 port 47006 ssh2
+Nov  5 10:14:47 web-prod-01 sshd[3992]: Failed password for invalid user postgres from 203.0.113.45 port 31537 ssh2
+Nov  5 10:14:59 web-prod-01 sshd[14685]: Failed password for invalid user test from 203.0.113.45 port 43216 ssh2
+Nov  5 10:15:11 web-prod-01 sshd[18341]: Failed password for ubuntu from 203.0.113.45 port 49823 ssh2
+Nov  5 10:15:20 web-prod-01 sshd[19137]: Failed password for invalid user admin from 203.0.113.45 port 32183 ssh2
+Nov  5 10:15:27 web-prod-01 sshd[19903]: Failed password for invalid user postgres from 203.0.113.45 port 52995 ssh2
+Nov  5 10:15:37 web-prod-01 sshd[25171]: Failed password for invalid user test from 203.0.113.45 port 46637 ssh2
+Nov  5 10:15:49 web-prod-01 sshd[24636]: Failed password for invalid user admin from 203.0.113.45 port 45475 ssh2
+Nov  5 10:15:57 web-prod-01 sshd[20449]: Failed password for www-data from 203.0.113.45 port 54554 ssh2
+Nov  5 10:16:10 web-prod-01 sshd[12610]: Failed password for invalid user root from 203.0.113.45 port 49787 ssh2
+Nov  5 10:16:22 web-prod-01 sshd[20914]: Failed password for ubuntu from 203.0.113.45 port 57079 ssh2
+Nov  5 10:16:29 web-prod-01 sshd[24826]: Failed password for ubuntu from 203.0.113.45 port 62413 ssh2
+Nov  5 10:16:39 web-prod-01 sshd[9026]: Failed password for invalid user oracle from 203.0.113.45 port 58222 ssh2
+Nov  5 10:16:50 web-prod-01 sshd[15443]: Failed password for invalid user admin from 203.0.113.45 port 47442 ssh2
+Nov  5 10:16:56 web-prod-01 sshd[15826]: Failed password for ubuntu from 203.0.113.45 port 49273 ssh2
+Nov  5 10:17:07 web-prod-01 sshd[6288]: Failed password for invalid user admin from 203.0.113.45 port 30148 ssh2
+Nov  5 10:17:16 web-prod-01 sshd[1189]: Failed password for invalid user test from 203.0.113.45 port 51204 ssh2
+Nov  5 10:17:26 web-prod-01 sshd[31983]: Failed password for invalid user root from 203.0.113.45 port 32695 ssh2
+Nov  5 10:17:32 web-prod-01 sshd[23613]: Failed password for invalid user oracle from 203.0.113.45 port 30706 ssh2
+Nov  5 10:17:45 web-prod-01 sshd[11219]: Failed password for invalid user root from 203.0.113.45 port 38555 ssh2
+Nov  5 10:17:59 web-prod-01 sshd[3715]: Failed password for ubuntu from 203.0.113.45 port 64902 ssh2
+Nov  5 10:18:12 web-prod-01 sshd[10447]: Failed password for invalid user admin from 203.0.113.45 port 54927 ssh2
+Nov  5 10:18:19 web-prod-01 sshd[31127]: Failed password for invalid user oracle from 203.0.113.45 port 49209 ssh2
+Nov  5 10:18:28 web-prod-01 sshd[13217]: Failed password for invalid user test from 203.0.113.45 port 31300 ssh2
+Nov  5 10:18:34 web-prod-01 sshd[26920]: Failed password for invalid user admin from 203.0.113.45 port 62912 ssh2
+Nov  5 10:18:41 web-prod-01 sshd[6140]: Failed password for invalid user test from 203.0.113.45 port 35148 ssh2
+Nov  5 10:18:52 web-prod-01 sshd[3779]: Failed password for invalid user root from 203.0.113.45 port 30215 ssh2
+Nov  5 10:19:05 web-prod-01 sshd[16736]: Failed password for invalid user admin from 203.0.113.45 port 56922 ssh2
+Nov  5 10:19:18 web-prod-01 sshd[13633]: Failed password for www-data from 203.0.113.45 port 38366 ssh2
+Nov  5 10:19:26 web-prod-01 sshd[25318]: Failed password for invalid user test from 203.0.113.45 port 42151 ssh2
+Nov  5 10:19:34 web-prod-01 sshd[28667]: Failed password for invalid user test from 203.0.113.45 port 39934 ssh2
+Nov  5 10:19:44 web-prod-01 sshd[30457]: Failed password for invalid user oracle from 203.0.113.45 port 57884 ssh2
+Nov  5 10:19:58 web-prod-01 sshd[7325]: Failed password for invalid user postgres from 203.0.113.45 port 63535 ssh2
+Nov  5 10:20:12 web-prod-01 sshd[19964]: Failed password for www-data from 203.0.113.45 port 33067 ssh2
+Nov  5 10:20:22 web-prod-01 sshd[17124]: Failed password for ubuntu from 203.0.113.45 port 49434 ssh2
+Nov  5 10:20:30 web-prod-01 sshd[19023]: Failed password for invalid user root from 203.0.113.45 port 56804 ssh2
+Nov  5 10:20:43 web-prod-01 sshd[15901]: Failed password for invalid user root from 203.0.113.45 port 62857 ssh2
+Nov  5 10:20:55 web-prod-01 sshd[21395]: Failed password for invalid user postgres from 203.0.113.45 port 54365 ssh2
+Nov  5 10:21:05 web-prod-01 sshd[3622]: Failed password for www-data from 203.0.113.45 port 53100 ssh2
+Nov  5 10:21:18 web-prod-01 sshd[7616]: Failed password for invalid user test from 203.0.113.45 port 43387 ssh2
+Nov  5 10:21:31 web-prod-01 sshd[23769]: Failed password for www-data from 203.0.113.45 port 53243 ssh2
+Nov  5 10:21:40 web-prod-01 sshd[11119]: Failed password for invalid user test from 203.0.113.45 port 53157 ssh2
+Nov  5 10:21:46 web-prod-01 sshd[10944]: Failed password for invalid user admin from 203.0.113.45 port 53670 ssh2
+Nov  5 10:21:52 web-prod-01 sshd[7399]: Failed password for invalid user admin from 203.0.113.45 port 32816 ssh2
+Nov  5 10:22:00 web-prod-01 sshd[28477]: Failed password for ubuntu from 203.0.113.45 port 31982 ssh2
+Nov  5 10:22:10 web-prod-01 sshd[20542]: Failed password for invalid user root from 203.0.113.45 port 48391 ssh2
+Nov  5 10:22:21 web-prod-01 sshd[28618]: Failed password for invalid user admin from 203.0.113.45 port 55869 ssh2
+Nov  5 10:22:30 web-prod-01 sshd[19761]: Failed password for invalid user root from 203.0.113.45 port 45135 ssh2
+Nov  5 10:22:39 web-prod-01 sshd[10728]: Failed password for invalid user root from 203.0.113.45 port 36668 ssh2
+Nov  5 10:22:49 web-prod-01 sshd[10801]: Failed password for invalid user test from 203.0.113.45 port 45867 ssh2
+Nov  5 10:22:57 web-prod-01 sshd[4626]: Failed password for invalid user postgres from 203.0.113.45 port 53150 ssh2
+Nov  5 10:23:10 web-prod-01 sshd[18212]: Failed password for invalid user root from 203.0.113.45 port 37432 ssh2
+Nov  5 10:23:19 web-prod-01 sshd[23318]: Failed password for ubuntu from 203.0.113.45 port 60876 ssh2
+Nov  5 10:23:25 web-prod-01 sshd[8604]: Failed password for ubuntu from 203.0.113.45 port 61640 ssh2
+Nov  5 10:23:39 web-prod-01 sshd[9278]: Failed password for invalid user root from 203.0.113.45 port 49864 ssh2
+Nov  5 10:23:50 web-prod-01 sshd[22421]: Failed password for ubuntu from 203.0.113.45 port 54689 ssh2
+Nov  5 10:23:58 web-prod-01 sshd[6235]: Failed password for ubuntu from 203.0.113.45 port 33378 ssh2
+Nov  5 10:24:05 web-prod-01 sshd[6446]: Failed password for invalid user postgres from 203.0.113.45 port 44122 ssh2
+Nov  5 10:24:10 web-prod-01 sshd[14760]: Failed password for www-data from 203.0.113.45 port 44703 ssh2
+Nov  5 10:24:15 web-prod-01 sshd[11475]: Failed password for invalid user oracle from 203.0.113.45 port 38003 ssh2
+Nov  5 10:24:29 web-prod-01 sshd[20019]: Failed password for invalid user oracle from 203.0.113.45 port 55858 ssh2
+Nov  5 10:24:41 web-prod-01 sshd[25462]: Failed password for ubuntu from 203.0.113.45 port 48247 ssh2
+Nov  5 10:24:55 web-prod-01 sshd[4910]: Failed password for www-data from 203.0.113.45 port 36391 ssh2
+Nov  5 10:25:08 web-prod-01 sshd[5643]: Failed password for invalid user admin from 203.0.113.45 port 36701 ssh2
+Nov  5 10:25:18 web-prod-01 sshd[24038]: Failed password for invalid user oracle from 203.0.113.45 port 40069 ssh2
+Nov  5 10:25:31 web-prod-01 sshd[5401]: Failed password for www-data from 203.0.113.45 port 60167 ssh2
+Nov  5 10:25:44 web-prod-01 sshd[22522]: Failed password for invalid user test from 203.0.113.45 port 62613 ssh2
+Nov  5 10:25:53 web-prod-01 sshd[17041]: Failed password for invalid user postgres from 203.0.113.45 port 64584 ssh2
+Nov  5 10:25:58 web-prod-01 sshd[9547]: Failed password for invalid user oracle from 203.0.113.45 port 63098 ssh2
+Nov  5 10:26:10 web-prod-01 sshd[28041]: Failed password for invalid user oracle from 203.0.113.45 port 33123 ssh2
+Nov  5 10:26:18 web-prod-01 sshd[29870]: Failed password for ubuntu from 203.0.113.45 port 42125 ssh2
+Nov  5 10:26:30 web-prod-01 sshd[11126]: Failed password for invalid user postgres from 203.0.113.45 port 32832 ssh2
+Nov  5 10:26:37 web-prod-01 sshd[15648]: Failed password for ubuntu from 203.0.113.45 port 30019 ssh2
+Nov  5 10:26:51 web-prod-01 sshd[16174]: Failed password for invalid user test from 203.0.113.45 port 53111 ssh2
+Nov  5 10:26:58 web-prod-01 sshd[22768]: Failed password for invalid user postgres from 203.0.113.45 port 36049 ssh2
+Nov  5 10:27:12 web-prod-01 sshd[23889]: Failed password for invalid user admin from 203.0.113.45 port 49934 ssh2
+Nov  5 10:27:24 web-prod-01 sshd[9268]: Failed password for invalid user root from 203.0.113.45 port 52833 ssh2
+Nov  5 10:27:32 web-prod-01 sshd[24072]: Failed password for ubuntu from 203.0.113.45 port 54117 ssh2
+Nov  5 10:27:46 web-prod-01 sshd[25347]: Failed password for invalid user root from 203.0.113.45 port 45473 ssh2
+Nov  5 10:27:57 web-prod-01 sshd[3780]: Failed password for invalid user postgres from 203.0.113.45 port 35642 ssh2
+Nov  5 10:28:03 web-prod-01 sshd[26799]: Failed password for invalid user root from 203.0.113.45 port 57595 ssh2
+Nov  5 10:28:16 web-prod-01 sshd[23381]: Failed password for ubuntu from 203.0.113.45 port 44521 ssh2
+Nov  5 10:28:28 web-prod-01 sshd[16728]: Failed password for ubuntu from 203.0.113.45 port 53168 ssh2
+Nov  5 10:28:36 web-prod-01 sshd[13733]: Failed password for invalid user root from 203.0.113.45 port 33791 ssh2
+Nov  5 10:28:47 web-prod-01 sshd[23670]: Failed password for invalid user admin from 203.0.113.45 port 57976 ssh2
+Nov  5 10:28:54 web-prod-01 sshd[2707]: Failed password for invalid user test from 203.0.113.45 port 59665 ssh2
+Nov  5 10:29:06 web-prod-01 sshd[17008]: Failed password for invalid user root from 203.0.113.45 port 59372 ssh2
+Nov  5 10:29:19 web-prod-01 sshd[14560]: Failed password for invalid user postgres from 203.0.113.45 port 45018 ssh2
+Nov  5 10:29:28 web-prod-01 sshd[11112]: Failed password for invalid user oracle from 203.0.113.45 port 49397 ssh2
+Nov  5 10:29:34 web-prod-01 sshd[13528]: Failed password for invalid user oracle from 203.0.113.45 port 50223 ssh2
+Nov  5 10:29:44 web-prod-01 sshd[25547]: Failed password for www-data from 203.0.113.45 port 57823 ssh2
+Nov  5 10:29:54 web-prod-01 sshd[3531]: Failed password for invalid user postgres from 203.0.113.45 port 60561 ssh2
+Nov  5 10:30:00 web-prod-01 sshd[4803]: Failed password for invalid user admin from 203.0.113.45 port 34808 ssh2
+Nov  5 10:30:09 web-prod-01 sshd[22819]: Failed password for invalid user oracle from 203.0.113.45 port 42107 ssh2
+Nov  5 10:30:22 web-prod-01 sshd[1347]: Failed password for www-data from 203.0.113.45 port 59481 ssh2
+Nov  5 10:30:28 web-prod-01 sshd[24211]: Failed password for invalid user root from 203.0.113.45 port 36953 ssh2
+Nov  5 10:30:33 web-prod-01 sshd[6029]: Failed password for invalid user oracle from 203.0.113.45 port 63468 ssh2
+Nov  5 10:30:42 web-prod-01 sshd[27985]: Failed password for invalid user oracle from 203.0.113.45 port 45655 ssh2
+Nov  5 10:30:48 web-prod-01 sshd[18747]: Failed password for invalid user oracle from 203.0.113.45 port 36675 ssh2
+Nov  5 10:30:54 web-prod-01 sshd[31954]: Failed password for invalid user root from 203.0.113.45 port 57222 ssh2
+Nov  5 10:31:04 web-prod-01 sshd[15817]: Failed password for invalid user postgres from 203.0.113.45 port 46908 ssh2
+Nov  5 10:31:13 web-prod-01 sshd[18260]: Failed password for invalid user admin from 203.0.113.45 port 48780 ssh2
+Nov  5 10:31:21 web-prod-01 sshd[24067]: Failed password for www-data from 203.0.113.45 port 30411 ssh2
+Nov  5 10:31:27 web-prod-01 sshd[4387]: Failed password for www-data from 203.0.113.45 port 30724 ssh2
+Nov  5 10:31:34 web-prod-01 sshd[6751]: Failed password for invalid user oracle from 203.0.113.45 port 42492 ssh2
+Nov  5 10:31:43 web-prod-01 sshd[26169]: Failed password for www-data from 203.0.113.45 port 44436 ssh2
+Nov  5 10:31:55 web-prod-01 sshd[20872]: Failed password for www-data from 203.0.113.45 port 39323 ssh2
+Nov  5 10:32:08 web-prod-01 sshd[8226]: Failed password for invalid user postgres from 203.0.113.45 port 35933 ssh2
+Nov  5 10:32:16 web-prod-01 sshd[10273]: Failed password for ubuntu from 203.0.113.45 port 44004 ssh2
+Nov  5 10:32:22 web-prod-01 sshd[9756]: Failed password for invalid user postgres from 203.0.113.45 port 43427 ssh2
+Nov  5 10:32:27 web-prod-01 sshd[13156]: Failed password for invalid user oracle from 203.0.113.45 port 37034 ssh2
+Nov  5 10:32:39 web-prod-01 sshd[20136]: Failed password for invalid user admin from 203.0.113.45 port 35829 ssh2
+Nov  5 10:32:45 web-prod-01 sshd[3773]: Failed password for ubuntu from 203.0.113.45 port 64012 ssh2
+Nov  5 10:32:56 web-prod-01 sshd[14606]: Failed password for ubuntu from 203.0.113.45 port 43048 ssh2
+Nov  5 10:33:08 web-prod-01 sshd[27657]: Failed password for www-data from 203.0.113.45 port 36004 ssh2
+Nov  5 10:33:20 web-prod-01 sshd[12858]: Failed password for invalid user root from 203.0.113.45 port 58532 ssh2
+Nov  5 10:33:26 web-prod-01 sshd[24220]: Failed password for www-data from 203.0.113.45 port 37947 ssh2
+Nov  5 10:33:33 web-prod-01 sshd[22128]: Failed password for invalid user root from 203.0.113.45 port 60265 ssh2
+Nov  5 10:33:47 web-prod-01 sshd[9302]: Failed password for invalid user admin from 203.0.113.45 port 50506 ssh2
+Nov  5 10:34:01 web-prod-01 sshd[24764]: Failed password for invalid user postgres from 203.0.113.45 port 51107 ssh2
+Nov  5 10:34:06 web-prod-01 sshd[19105]: Failed password for invalid user postgres from 203.0.113.45 port 47550 ssh2
+Nov  5 10:34:15 web-prod-01 sshd[2705]: Failed password for www-data from 203.0.113.45 port 55135 ssh2
+Nov  5 10:34:20 web-prod-01 sshd[7701]: Failed password for www-data from 203.0.113.45 port 30985 ssh2
+Nov  5 10:34:34 web-prod-01 sshd[27783]: Failed password for invalid user admin from 203.0.113.45 port 58665 ssh2
+Nov  5 10:34:39 web-prod-01 sshd[21867]: Failed password for invalid user oracle from 203.0.113.45 port 61439 ssh2
+Nov  5 10:34:47 web-prod-01 sshd[26140]: Failed password for invalid user oracle from 203.0.113.45 port 58115 ssh2
+Nov  5 10:34:56 web-prod-01 sshd[31291]: Failed password for www-data from 203.0.113.45 port 59561 ssh2
+Nov  5 10:35:06 web-prod-01 sshd[12551]: Failed password for ubuntu from 203.0.113.45 port 30696 ssh2
+Nov  5 10:35:16 web-prod-01 sshd[23208]: Failed password for invalid user root from 203.0.113.45 port 45939 ssh2
+Nov  5 10:35:25 web-prod-01 sshd[28147]: Failed password for invalid user oracle from 203.0.113.45 port 58311 ssh2
+Nov  5 10:35:33 web-prod-01 sshd[17450]: Failed password for invalid user oracle from 203.0.113.45 port 50703 ssh2
+Nov  5 10:35:42 web-prod-01 sshd[11343]: Failed password for ubuntu from 203.0.113.45 port 31501 ssh2
+Nov  5 10:35:54 web-prod-01 sshd[17517]: Failed password for invalid user test from 203.0.113.45 port 32901 ssh2
+Nov  5 10:36:18 web-prod-01 sshd[14547]: Accepted password for ubuntu from 203.0.113.45 port 51882 ssh2
+Nov  5 10:36:21 web-prod-01 sshd[15852]: pam_unix(sshd:session): session opened for user ubuntu(uid=1000) by (uid=0)
+Nov  5 10:40:00 web-prod-01 sshd[25235]: ubuntu : TTY=pts/0 ; PWD=/home/ubuntu ; USER=root ; COMMAND=/bin/bash
+Nov  5 10:40:02 web-prod-01 sshd[30161]: pam_unix(sudo:session): session opened for user root(uid=0) by ubuntu(uid=1000)
+Nov  5 11:00:00 web-prod-01 sshd[12889]: new user: name=svcbackup, UID=1001, GID=1001, home=/home/svcbackup, shell=/bin/bash
+Nov  5 11:00:40 web-prod-01 sshd[16594]: new group: name=svcbackup, GID=1001
+Nov  5 11:01:00 web-prod-01 sshd[29037]: useradd: new user svcbackup added to group sudo
+Nov  5 11:02:00 web-prod-01 sshd[23939]: pam_unix(sshd:session): session opened for user svcbackup(uid=1001) by (uid=0)
+Nov  5 11:30:00 web-prod-01 sshd[24340]: session opened for user root(uid=0) by ubuntu(uid=1000)
+Nov  5 12:00:00 web-prod-01 sshd[26771]: session opened for user root(uid=0) by ubuntu(uid=1000)
+Nov  5 12:30:00 web-prod-01 sshd[1027]: session opened for user root(uid=0) by ubuntu(uid=1000)
+Nov  5 13:00:00 web-prod-01 sshd[6715]: session opened for user root(uid=0) by ubuntu(uid=1000)
+Nov  5 13:30:00 web-prod-01 sshd[26177]: session opened for user root(uid=0) by ubuntu(uid=1000)
