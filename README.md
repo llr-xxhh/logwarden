@@ -96,7 +96,9 @@
 
 ### 方式一：便携版（Windows，目标机零依赖）
 
-把 `logview-duck-portable-*.zip` 解压到任意目录，双击 **`启动.vbs`**，浏览器自动打开。
+把 [`Releases`](../../releases/latest) 里的 **`logwarden-0.7.0-portable-win64.zip`**（40.8 MB）解压到任意目录，双击 **`启动.vbs`**，浏览器自动打开。
+
+同版本还提供 `.tar.gz`（40.0 MB，体积只小 2%，但 Windows 解压需要 7-Zip / WinRAR，所以默认推荐 zip）。
 
 - `runtime\python\` 里是嵌入式 Python 3.11.9 + 全部依赖（duckdb、fastapi、paramiko、smbprotocol），**目标机不需要装 Python，也不需要联网**；
 - 停止服务双击 `停止.vbs`；
