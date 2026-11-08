@@ -1,0 +1,8 @@
+fastapi>=0.115,<1
+uvicorn>=0.32,<1
+python-multipart>=0.0.9,<1
+duckdb>=1.1
+evtx>=0.8
+# 远程拉取：SSH/SFTP 与 SMB。HTTP 走标准库，不引额外依赖。
+paramiko>=3.4
+smbprotocol>=1.13

@@ -1,0 +1,8 @@
+{
+  "id": "syslog",
+  "name": "syslog / auth.log / journald",
+  "table": "raw_syslog",
+  "kind": "syslog",
+  "fields": ["ts", "host", "proc", "pid", "user", "srcip", "result", "level", "msg", "source_id"],
+  "ddl": "CREATE TABLE IF NOT EXISTS raw_syslog (id INTEGER PRIMARY KEY AUTOINCREMENT,task_id TEXT NOT NULL,import_id TEXT NOT NULL,line_no INTEGER NOT NULL,raw TEXT NOT NULL,source_id TEXT NOT NULL,ts INTEGER,host TEXT,proc TEXT,pid INTEGER,user TEXT,srcip TEXT,result TEXT,level TEXT,msg TEXT);"
+}

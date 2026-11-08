@@ -1,0 +1,8 @@
+{
+  "id": "shell",
+  "name": "bash_history / crontab",
+  "table": "raw_shell",
+  "kind": "shell",
+  "fields": ["ts", "host", "user", "source", "cmd", "source_id"],
+  "ddl": "CREATE TABLE IF NOT EXISTS raw_shell (id INTEGER PRIMARY KEY AUTOINCREMENT,task_id TEXT NOT NULL,import_id TEXT NOT NULL,line_no INTEGER NOT NULL,raw TEXT NOT NULL,source_id TEXT NOT NULL,ts INTEGER,host TEXT,user TEXT,source TEXT,cmd TEXT);"
+}

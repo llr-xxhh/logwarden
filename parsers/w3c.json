@@ -1,0 +1,8 @@
+{
+  "id": "w3c",
+  "name": "IIS W3C",
+  "table": "raw_combined",
+  "kind": "web",
+  "fields": ["ts", "ip", "method", "path", "status", "bytes", "ua", "ref", "source_id"],
+  "ddl": "CREATE TABLE IF NOT EXISTS raw_combined (id INTEGER PRIMARY KEY AUTOINCREMENT,task_id TEXT NOT NULL,import_id TEXT NOT NULL,line_no INTEGER NOT NULL,raw TEXT NOT NULL,source_id TEXT NOT NULL,ts INTEGER,ip TEXT,method TEXT,path TEXT,status INTEGER,bytes INTEGER,ua TEXT,ref TEXT);"
+}

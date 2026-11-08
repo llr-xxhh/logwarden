@@ -1,0 +1,8 @@
+{
+  "id": "audit",
+  "name": "Linux auditd",
+  "table": "raw_audit",
+  "kind": "audit",
+  "fields": ["ts", "host", "type", "key", "comm", "exe", "msg", "source_id"],
+  "ddl": "CREATE TABLE IF NOT EXISTS raw_audit (id INTEGER PRIMARY KEY AUTOINCREMENT,task_id TEXT NOT NULL,import_id TEXT NOT NULL,line_no INTEGER NOT NULL,raw TEXT NOT NULL,source_id TEXT NOT NULL,ts INTEGER,host TEXT,type TEXT,key TEXT,comm TEXT,exe TEXT,msg TEXT);"
+}

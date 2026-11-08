@@ -1,0 +1,8 @@
+{
+  "id": "firewall",
+  "name": "防火墙 Syslog / key=value",
+  "table": "raw_firewall",
+  "kind": "firewall",
+  "fields": ["ts", "host", "vendor", "action", "protocol", "srcip", "srcport", "dstip", "dstport", "rule", "msg", "source_id"],
+  "ddl": "CREATE TABLE IF NOT EXISTS raw_firewall (id INTEGER PRIMARY KEY AUTOINCREMENT,task_id TEXT NOT NULL,import_id TEXT NOT NULL,line_no INTEGER NOT NULL,raw TEXT NOT NULL,source_id TEXT NOT NULL,ts INTEGER,host TEXT,vendor TEXT,action TEXT,protocol TEXT,srcip TEXT,srcport INTEGER,dstip TEXT,dstport INTEGER,rule TEXT,msg TEXT);"
+}

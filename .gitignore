@@ -1,0 +1,26 @@
+# Python
+__pycache__/
+*.pyc
+.venv/
+
+# 运行时数据（任务库/元数据/浏览器配置/日志）
+data/
+data-duck/
+meta.db
+meta.duckdb
+meta.duckdb.wal
+*.duckdb
+*.duckdb.wal
+runtime/
+
+# 用户自定义内容（模板/日志源）——随版本演进，不进仓库
+formats/
+sources/
+
+# 本地开发脚本与基准
+_dev/
+_bench/
+
+# 系统
+Thumbs.db
+.DS_Store

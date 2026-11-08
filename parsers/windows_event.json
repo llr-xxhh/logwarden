@@ -1,0 +1,27 @@
+{
+  "id": "windows_event",
+  "name": "Windows 事件日志（EVTX / JSON / XML / CSV）",
+  "table": "raw_evtx",
+  "kind": "win",
+  "fields": [
+    "ts",
+    "host",
+    "eventId",
+    "level",
+    "user",
+    "srcip",
+    "logonType",
+    "msg",
+    "kind",
+    "text",
+    "event",
+    "image",
+    "cmdline",
+    "target",
+    "parent",
+    "source_id",
+    "sid",
+    "detail"
+  ],
+  "ddl": "CREATE TABLE IF NOT EXISTS raw_evtx (id INTEGER PRIMARY KEY AUTOINCREMENT,task_id TEXT NOT NULL,import_id TEXT NOT NULL,line_no INTEGER NOT NULL,raw TEXT NOT NULL,source_id TEXT NOT NULL,ts INTEGER,host TEXT,eventId INTEGER,level TEXT,user TEXT,srcip TEXT,logonType TEXT,msg TEXT,kind TEXT,text TEXT,event TEXT,image TEXT,cmdline TEXT,target TEXT,parent TEXT,sid TEXT,detail TEXT);"
+}

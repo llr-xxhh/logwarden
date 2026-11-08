@@ -1,0 +1,8 @@
+{
+  "id": "json",
+  "name": "JSON Lines 日志",
+  "table": "raw_text",
+  "kind": "text",
+  "fields": ["ts", "host", "proc", "level", "msg", "source_id"],
+  "ddl": "CREATE TABLE IF NOT EXISTS raw_text (id INTEGER PRIMARY KEY AUTOINCREMENT,task_id TEXT NOT NULL,import_id TEXT NOT NULL,line_no INTEGER NOT NULL,raw TEXT NOT NULL,source_id TEXT NOT NULL,ts INTEGER,host TEXT,proc TEXT,level TEXT,msg TEXT);"
+}
