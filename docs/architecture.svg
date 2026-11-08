@@ -1,0 +1,104 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 680 748" width="680" height="748" font-family="'Segoe UI','Microsoft YaHei',system-ui,sans-serif">
+<title>LogWarden 架构分层</title>
+<desc>数据源到消费方的七层结构：任务层、解析层、规则层、DuckDB 分库存储、双接口出口。</desc>
+<defs>
+<marker id="arrow" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
+<path d="M2 1L8 5L2 9" fill="none" stroke="#888780" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
+</marker>
+</defs>
+
+<g>
+<rect x="40" y="14" width="600" height="90" rx="14" fill="#F7F7F4" stroke="#DCDAD1" stroke-width="0.5"/>
+<text x="56" y="35" font-size="11.5" fill="#888780">① 数据源</text>
+<rect x="56" y="44" width="180" height="48" rx="8" fill="#FFFFFF" stroke="#D3D1C7" stroke-width="0.5"/>
+<text x="146" y="63" text-anchor="middle" dominant-baseline="central" font-size="13.5" font-weight="500" fill="#1F1F1E">本地文件</text>
+<text x="146" y="82" text-anchor="middle" dominant-baseline="central" font-size="11.5" fill="#5F5E5A">行内拖入 · 选文件</text>
+<rect x="250" y="44" width="180" height="48" rx="8" fill="#FFFFFF" stroke="#D3D1C7" stroke-width="0.5"/>
+<text x="340" y="63" text-anchor="middle" dominant-baseline="central" font-size="13.5" font-weight="500" fill="#1F1F1E">远程拉取</text>
+<text x="340" y="82" text-anchor="middle" dominant-baseline="central" font-size="11.5" fill="#5F5E5A">SSH · SMB · HTTP</text>
+<rect x="444" y="44" width="180" height="48" rx="8" fill="#FFFFFF" stroke="#D3D1C7" stroke-width="0.5"/>
+<text x="534" y="63" text-anchor="middle" dominant-baseline="central" font-size="13.5" font-weight="500" fill="#1F1F1E">手动粘贴</text>
+<text x="534" y="82" text-anchor="middle" dominant-baseline="central" font-size="11.5" fill="#5F5E5A">临时看几行</text>
+</g>
+<path d="M340 104L340 118" fill="none" stroke="#888780" stroke-width="1.5" marker-end="url(#arrow)"/>
+
+<g>
+<rect x="40" y="120" width="600" height="90" rx="14" fill="#F7F7F4" stroke="#DCDAD1" stroke-width="0.5"/>
+<text x="56" y="141" font-size="11.5" fill="#888780">② 任务层 · 一级实体</text>
+<text x="624" y="141" text-anchor="end" font-size="11.5" fill="#888780">删除任务 = 删库文件</text>
+<rect x="56" y="150" width="180" height="48" rx="8" fill="#FFFFFF" stroke="#D3D1C7" stroke-width="0.5"/>
+<text x="146" y="169" text-anchor="middle" dominant-baseline="central" font-size="13.5" font-weight="500" fill="#1F1F1E">新建任务</text>
+<text x="146" y="188" text-anchor="middle" dominant-baseline="central" font-size="11.5" fill="#5F5E5A">勾组件，模板预勾</text>
+<rect x="250" y="150" width="180" height="48" rx="8" fill="#FFFFFF" stroke="#D3D1C7" stroke-width="0.5"/>
+<text x="340" y="169" text-anchor="middle" dominant-baseline="central" font-size="13.5" font-weight="500" fill="#1F1F1E">一任务多导入</text>
+<text x="340" y="188" text-anchor="middle" dominant-baseline="central" font-size="11.5" fill="#5F5E5A">分批补日志，可跳过</text>
+<rect x="444" y="150" width="180" height="48" rx="8" fill="#FFFFFF" stroke="#D3D1C7" stroke-width="0.5"/>
+<text x="534" y="169" text-anchor="middle" dominant-baseline="central" font-size="13.5" font-weight="500" fill="#1F1F1E">证据完整度</text>
+<text x="534" y="188" text-anchor="middle" dominant-baseline="central" font-size="11.5" fill="#5F5E5A">应收 · 实收 · 缺失原因</text>
+</g>
+<path d="M340 210L340 224" fill="none" stroke="#888780" stroke-width="1.5" marker-end="url(#arrow)"/>
+
+<g>
+<rect x="40" y="226" width="600" height="90" rx="14" fill="#F7F7F4" stroke="#DCDAD1" stroke-width="0.5"/>
+<text x="56" y="247" font-size="11.5" fill="#888780">③ 解析层 · 可插拔</text>
+<rect x="56" y="256" width="180" height="48" rx="8" fill="#FFFFFF" stroke="#D3D1C7" stroke-width="0.5"/>
+<text x="146" y="275" text-anchor="middle" dominant-baseline="central" font-size="13.5" font-weight="500" fill="#1F1F1E">格式跟源声明</text>
+<text x="146" y="294" text-anchor="middle" dominant-baseline="central" font-size="11.5" fill="#5F5E5A">不按内容猜，避免污染</text>
+<rect x="250" y="256" width="180" height="48" rx="8" fill="#FFFFFF" stroke="#D3D1C7" stroke-width="0.5"/>
+<text x="340" y="275" text-anchor="middle" dominant-baseline="central" font-size="13.5" font-weight="500" fill="#1F1F1E">解析器 JSON</text>
+<text x="340" y="294" text-anchor="middle" dominant-baseline="central" font-size="11.5" fill="#5F5E5A">正则 + DDL + 字段映射</text>
+<rect x="444" y="256" width="180" height="48" rx="8" fill="#FFFFFF" stroke="#D3D1C7" stroke-width="0.5"/>
+<text x="534" y="275" text-anchor="middle" dominant-baseline="central" font-size="13.5" font-weight="500" fill="#1F1F1E">失败兜底</text>
+<text x="534" y="294" text-anchor="middle" dominant-baseline="central" font-size="11.5" fill="#5F5E5A">报行号 + 手填正则</text>
+</g>
+<path d="M340 316L340 330" fill="none" stroke="#888780" stroke-width="1.5" marker-end="url(#arrow)"/>
+
+<g>
+<rect x="40" y="332" width="600" height="90" rx="14" fill="#F7F7F4" stroke="#DCDAD1" stroke-width="0.5"/>
+<text x="56" y="353" font-size="11.5" fill="#888780">④ 规则层 · 分层热加载</text>
+<rect x="56" y="362" width="180" height="48" rx="8" fill="#FFFFFF" stroke="#D3D1C7" stroke-width="0.5"/>
+<text x="146" y="381" text-anchor="middle" dominant-baseline="central" font-size="13.5" font-weight="500" fill="#1F1F1E">builtin</text>
+<text x="146" y="400" text-anchor="middle" dominant-baseline="central" font-size="11.5" fill="#5F5E5A">17 文件 · 164 条规则</text>
+<rect x="250" y="362" width="180" height="48" rx="8" fill="#FFFFFF" stroke="#D3D1C7" stroke-width="0.5"/>
+<text x="340" y="381" text-anchor="middle" dominant-baseline="central" font-size="13.5" font-weight="500" fill="#1F1F1E">custom</text>
+<text x="340" y="400" text-anchor="middle" dominant-baseline="central" font-size="11.5" fill="#5F5E5A">同 id 覆盖，升级不丢</text>
+<rect x="444" y="362" width="180" height="48" rx="8" fill="#FFFFFF" stroke="#D3D1C7" stroke-width="0.5"/>
+<text x="534" y="381" text-anchor="middle" dominant-baseline="central" font-size="13.5" font-weight="500" fill="#1F1F1E">阈值参数化</text>
+<text x="534" y="400" text-anchor="middle" dominant-baseline="central" font-size="11.5" fill="#5F5E5A">SQL 下推 · 界面可调</text>
+</g>
+<path d="M340 422L340 436" fill="none" stroke="#888780" stroke-width="1.5" marker-end="url(#arrow)"/>
+
+<g>
+<rect x="40" y="438" width="600" height="104" rx="14" fill="#E1F5EE" stroke="#5DCAA5" stroke-width="0.5"/>
+<text x="56" y="459" font-size="11.5" fill="#0F6E56">⑤ 存储层 · DuckDB 列存 · 主库 + 每任务一库</text>
+<text x="624" y="459" text-anchor="end" font-size="11.5" fill="#0F6E56">删任务 = 删文件</text>
+<rect x="56" y="468" width="276" height="62" rx="8" fill="#FFFFFF" stroke="#5DCAA5" stroke-width="0.5"/>
+<text x="194" y="489" text-anchor="middle" dominant-baseline="central" font-size="13.5" font-weight="500" fill="#1F1F1E">meta.duckdb</text>
+<text x="194" y="509" text-anchor="middle" dominant-baseline="central" font-size="11.5" fill="#5F5E5A">任务列表 · 自定义源 · 格式模板</text>
+<rect x="348" y="468" width="276" height="62" rx="8" fill="#FFFFFF" stroke="#5DCAA5" stroke-width="0.5"/>
+<text x="486" y="489" text-anchor="middle" dominant-baseline="central" font-size="13.5" font-weight="500" fill="#1F1F1E">data-duck/task_*.duckdb</text>
+<text x="486" y="509" text-anchor="middle" dominant-baseline="central" font-size="11.5" fill="#5F5E5A">raw_* · 模板动态建列 · 压缩 5 倍</text>
+</g>
+<path d="M340 542L340 556" fill="none" stroke="#888780" stroke-width="1.5" marker-end="url(#arrow)"/>
+
+<g>
+<rect x="40" y="558" width="600" height="90" rx="14" fill="#E1F5EE" stroke="#5DCAA5" stroke-width="0.5"/>
+<text x="56" y="579" font-size="11.5" fill="#0F6E56">⑥ 本地服务 · 只监听 127.0.0.1 · 路由只调 services</text>
+<rect x="56" y="588" width="276" height="48" rx="8" fill="#FFFFFF" stroke="#5DCAA5" stroke-width="0.5"/>
+<text x="194" y="607" text-anchor="middle" dominant-baseline="central" font-size="13.5" font-weight="500" fill="#1F1F1E">REST API</text>
+<text x="194" y="626" text-anchor="middle" dominant-baseline="central" font-size="11.5" fill="#5F5E5A">页面全部动作 · 筛选 / 统计 / 规则</text>
+<rect x="348" y="588" width="276" height="48" rx="8" fill="#FFFFFF" stroke="#5DCAA5" stroke-width="0.5"/>
+<text x="486" y="607" text-anchor="middle" dominant-baseline="central" font-size="13.5" font-weight="500" fill="#1F1F1E">报告导出</text>
+<text x="486" y="626" text-anchor="middle" dominant-baseline="central" font-size="11.5" fill="#5F5E5A">Markdown · CSV · JSON · 本地生成</text>
+</g>
+<path d="M340 648L340 662" fill="none" stroke="#888780" stroke-width="1.5" marker-end="url(#arrow)"/>
+
+<g>
+<rect x="40" y="664" width="600" height="64" rx="14" fill="#F7F7F4" stroke="#DCDAD1" stroke-width="0.5"/>
+<text x="56" y="685" font-size="11.5" fill="#888780">⑦ 消费方</text>
+<rect x="56" y="692" width="276" height="30" rx="8" fill="#FFFFFF" stroke="#D3D1C7" stroke-width="0.5"/>
+<text x="194" y="708" text-anchor="middle" dominant-baseline="central" font-size="12.5" fill="#1F1F1E">Chrome / Edge / Firefox</text>
+<rect x="348" y="692" width="276" height="30" rx="8" fill="#FFFFFF" stroke="#D3D1C7" stroke-width="0.5"/>
+<text x="486" y="708" text-anchor="middle" dominant-baseline="central" font-size="12.5" fill="#1F1F1E">本地文件 · 报告与数据</text>
+</g>
+</svg>
