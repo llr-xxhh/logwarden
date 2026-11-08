@@ -1,0 +1,63 @@
+{
+  "version": "0.2",
+  "category": "injection",
+  "category_name": "注入与穿越",
+  "rules": [
+    {
+      "id": "inj_sql",
+      "name": "SQL 注入特征",
+      "severity": "high",
+      "kind": "row",
+      "scope": "web",
+      "match": {
+        "raw": { "iregex": "(union[\\s\\+]+select|sleep\\(|benchmark\\(|information_schema|extractvalue\\(|updatexml\\()" }
+      },
+      "explain": "请求中出现典型 SQL 注入函数或元数据表名",
+      "false_positive": "极少。若业务本身处理 SQL 文本（如 SQL 审核平台），需加路径白名单",
+      "tags": ["注入"],
+      "enabled": true
+    },
+    {
+      "id": "inj_cmd",
+      "name": "命令注入特征",
+      "severity": "medium",
+      "kind": "row",
+      "scope": "web",
+      "match": {
+        "raw": { "iregex": "(;\\s*(cat|ls|id|whoami|wget|curl|bash|sh|nc)\\s|\\|\\s*(cat|ls|id|whoami|bash)\\s|`[^`]{2,}`|\\$\\([^)]{2,}\\))" }
+      },
+      "explain": "参数中带命令分隔符并紧跟常见命令",
+      "false_positive": "部分前端框架会合法提交分号与括号；关键看响应是否回显命令结果",
+      "tags": ["注入"],
+      "enabled": true
+    },
+    {
+      "id": "inj_file_include",
+      "name": "文件包含特征",
+      "severity": "high",
+      "kind": "row",
+      "scope": "web",
+      "match": {
+        "raw": { "iregex": "(php://(input|filter)|data:(text|application)/|=https?://[^\\s&]+\\.(txt|jpg|png|gif))" }
+      },
+      "explain": "使用伪协议或远程文件作为包含源",
+      "false_positive": "极少",
+      "tags": ["注入"],
+      "enabled": true
+    },
+    {
+      "id": "traversal",
+      "name": "路径穿越",
+      "severity": "high",
+      "kind": "row",
+      "scope": "web",
+      "match": {
+        "raw": { "iregex": "(\\.\\./|\\.\\.%2f|%252e%252e|/etc/passwd|/etc/shadow|win\\.ini|/proc/self/)" }
+      },
+      "explain": "请求中出现目录回溯或多层编码的穿越载荷",
+      "false_positive": "静态资源引用中可能出现相对路径；看最终是否指向系统文件",
+      "tags": ["穿越"],
+      "enabled": true
+    }
+  ]
+}

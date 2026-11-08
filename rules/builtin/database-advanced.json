@@ -1,0 +1,87 @@
+{
+  "version": "1.0",
+  "category": "database_advanced",
+  "category_name": "数据库提权与落地",
+  "rules": [
+    {
+      "id": "db_outfile_write",
+      "name": "SQL 查询向服务器写文件",
+      "severity": "high",
+      "kind": "row",
+      "scope": "text",
+      "match": {
+        "raw": { "iregex": "\\bINTO\\s+(OUTFILE|DUMPFILE)\\s+['\"]?[^\\s;]+" }
+      },
+      "explain": "SELECT INTO OUTFILE/DUMPFILE 会把查询结果写入数据库服务器文件系统，常被用于写 WebShell",
+      "false_positive": "授权数据导出会使用；若目标是 Web 目录且扩展名为脚本则高度可疑",
+      "triage": "提取完整 SQL、执行账号与目标路径，检查 Web 目录是否出现对应文件及随后访问",
+      "attack": ["T1505.003", "T1059"],
+      "references": ["https://attack.mitre.org/techniques/T1505/003/", "https://dev.mysql.com/doc/refman/8.0/en/select-into.html"],
+      "enabled": true
+    },
+    {
+      "id": "db_mssql_cmdshell_enable",
+      "name": "SQL Server 启用 xp_cmdshell",
+      "severity": "high",
+      "kind": "row",
+      "scope": "text",
+      "match": {
+        "raw": { "iregex": "(sp_configure[^;]{0,100}xp_cmdshell|xp_cmdshell[^;]{0,100}sp_configure|EXEC\\s+xp_cmdshell)" }
+      },
+      "explain": "修改 xp_cmdshell 配置或直接执行它，可把数据库权限转化为操作系统命令执行",
+      "false_positive": "授权运维脚本偶尔启用；需核对执行账号、变更单与实际命令",
+      "triage": "检查 reconfigure 与后续 xp_cmdshell 调用，确认 SQL Server 服务账号权限及落地文件",
+      "attack": ["T1059", "T1548"],
+      "references": ["https://learn.microsoft.com/en-us/sql/relational-databases/system-stored-procedures/xp-cmdshell-transact-sql"],
+      "enabled": true
+    },
+    {
+      "id": "db_postgres_program",
+      "name": "PostgreSQL COPY 执行系统程序",
+      "severity": "high",
+      "kind": "row",
+      "scope": "text",
+      "match": {
+        "raw": { "iregex": "\\bCOPY\\b[^;]{0,240}\\b(FROM|TO)\\s+PROGRAM\\b" }
+      },
+      "explain": "COPY FROM/TO PROGRAM 直接调用操作系统程序，高权限数据库账号可借此执行命令",
+      "false_positive": "授权数据导入导出可能使用；生产环境应严格限制并核对命令内容",
+      "triage": "提取 PROGRAM 后的完整命令与执行账号，检查 PostgreSQL 服务进程创建的子进程",
+      "attack": ["T1059", "T1548"],
+      "references": ["https://www.postgresql.org/docs/current/sql-copy.html", "https://attack.mitre.org/techniques/T1059/"],
+      "enabled": true
+    },
+    {
+      "id": "db_redis_ssh_persist",
+      "name": "Redis 持久化到 SSH 公钥",
+      "severity": "high",
+      "kind": "row",
+      "scope": "text",
+      "match": {
+        "raw": { "iregex": "(?=[\\s\\S]*config\\s+set)(?=[\\s\\S]*(authorized_keys|/\\.ssh|dbfilename))" }
+      },
+      "explain": "Redis CONFIG SET 与 .ssh/authorized_keys 同时出现，符合利用持久化文件写 SSH 后门的过程",
+      "false_positive": "极少；正常 Redis 运维不应把持久化目录或文件名指向 SSH 配置",
+      "triage": "检查 dir、dbfilename、save 的完整顺序，核对 authorized_keys 新增公钥及登录来源",
+      "attack": ["T1098.004", "T1505.003"],
+      "references": ["https://attack.mitre.org/techniques/T1098/004/", "https://redis.io/docs/latest/commands/config-set/"],
+      "enabled": true
+    },
+    {
+      "id": "db_mongo_server_js",
+      "name": "MongoDB 服务端 JavaScript 执行",
+      "severity": "medium",
+      "kind": "row",
+      "scope": "text",
+      "match": {
+        "raw": { "iregex": "(\\$where\\s*[:=]|db\\.system\\.js|mapReduce[^;]{0,100}function\\s*\\()" }
+      },
+      "explain": "查询中使用 $where、system.js 或 MapReduce JavaScript，可能是注入或危险服务端脚本执行",
+      "false_positive": "旧业务会使用 $where 和 MapReduce；需要结合调用账号、频率和脚本内容判断",
+      "triage": "检查脚本内容是否访问敏感集合或调用危险函数，并确认应用是否允许服务端 JavaScript",
+      "attack": ["T1059.007"],
+      "references": ["https://www.mongodb.com/docs/manual/reference/operator/query/where/", "https://attack.mitre.org/techniques/T1059/007/"],
+      "enabled": true
+    }
+  ]
+}

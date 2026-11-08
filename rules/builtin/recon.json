@@ -1,0 +1,35 @@
+{
+  "version": "0.2",
+  "category": "recon",
+  "category_name": "信息侦察",
+  "rules": [
+    {
+      "id": "sensitive_file",
+      "name": "敏感文件探测",
+      "severity": "high",
+      "kind": "row",
+      "scope": "web",
+      "match": {
+        "path": { "icontains_any": ["/.git/", "/.svn/", "/.env", "/web.config", "/backup.zip", "/db.sql", "/.ds_store", "/wp-config.php", "/dump.sql"] }
+      },
+      "explain": "试图下载代码仓库、配置文件或数据库备份",
+      "false_positive": "极少。若站点确有公开的配置模板，需加白名单",
+      "tags": ["侦察"],
+      "enabled": true
+    },
+    {
+      "id": "admin_probe",
+      "name": "管理后台探测",
+      "severity": "low",
+      "kind": "row",
+      "scope": "web",
+      "match": {
+        "path": { "icontains_any": ["/admin", "/manager/html", "/wp-admin", "/phpmyadmin", "/actuator", "/swagger-ui"] }
+      },
+      "explain": "访问常见管理入口，可能是后台爆破前的踩点",
+      "false_positive": "内网运维正常访问也会命中；按来源网段区分",
+      "tags": ["侦察"],
+      "enabled": true
+    }
+  ]
+}

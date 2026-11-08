@@ -1,0 +1,15 @@
+{
+  "id": "k8s",
+  "name": "K8s 容器",
+  "subtitle": "ingress + 容器 + 节点",
+  "scene": "Kubernetes 集群，业务以容器方式运行",
+  "components": ["k8s", "docker", "ubuntu", "nginx"],
+  "suggested": ["redis", "elasticsearch", "kafka", "mysql"],
+  "checks": [
+    "是否有人创建 privileged: true 或挂载 hostPath 的 Pod",
+    "是否有 exec / attach 进入业务容器的记录",
+    "是否读取了大量 Secret（凭据窃取）",
+    "是否创建了 ClusterRoleBinding 绑定 cluster-admin（权限提升）",
+    "节点上是否出现非 kubelet 启动的异常容器"
+  ]
+}

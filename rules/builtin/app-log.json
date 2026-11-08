@@ -1,0 +1,175 @@
+{
+  "version": "1.0",
+  "category": "app_log",
+  "category_name": "数据库与应用日志",
+  "rules": [
+    {
+      "id": "db_sql_syntax_error",
+      "name": "SQL 语法报错",
+      "severity": "medium",
+      "kind": "row",
+      "scope": "text",
+      "match": {
+        "raw": { "iregex": "(you have an error in your sql syntax|error:\\s+syntax error at or near|ora-00933|ora-01756|incorrect syntax near|unclosed quotation mark)" }
+      },
+      "explain": "数据库返回语法错误，注入探测最直接的回显，配合访问日志定位来源",
+      "false_positive": "开发调试、SQL 手工执行也会报错；看是否来自应用账号且成批出现",
+      "tags": ["注入"],
+      "enabled": true
+    },
+    {
+      "id": "db_access_denied",
+      "name": "数据库认证失败",
+      "severity": "medium",
+      "kind": "row",
+      "scope": "text",
+      "match": {
+        "raw": { "iregex": "(access denied for user|password authentication failed for user|login failed for user|authentication failed)" }
+      },
+      "explain": "数据库账号认证失败，可能是密码喷洒或应用配置错误",
+      "false_positive": "应用改密码后旧连接会持续失败；看失败账号是否集中",
+      "tags": ["认证", "爆破"],
+      "enabled": true
+    },
+    {
+      "id": "db_udf_privilege",
+      "name": "数据库提权函数",
+      "severity": "high",
+      "kind": "row",
+      "scope": "text",
+      "match": {
+        "raw": { "iregex": "(create\\s+function[^;]{0,80}sys_exec|lib_mysqludf|xp_cmdshell|sp_oacreate|dbms_scheduler\\.create_job|utl_http\\.request)" }
+      },
+      "explain": "创建可执行系统命令的函数或启用 xp_cmdshell，数据库提权到系统权限的标准路径",
+      "false_positive": "极少。部分运维脚本会启用 xp_cmdshell 做数据搬运，需核对授权",
+      "tags": ["提权", "RCE"],
+      "enabled": true
+    },
+    {
+      "id": "db_redis_config",
+      "name": "Redis 危险配置",
+      "severity": "high",
+      "kind": "row",
+      "scope": "text",
+      "match": {
+        "raw": { "iregex": "(config\\s+set\\s+(dir|dbfilename|requirepass)|slaveof\\s+|replicaof\\s+)" }
+      },
+      "explain": "修改持久化目录或主从配置，未授权 Redis 被用来写文件的标准手法",
+      "false_positive": "Redis 运维变更会命中；核对执行来源与变更单",
+      "tags": ["未授权", "RCE"],
+      "enabled": true
+    },
+    {
+      "id": "db_injection_in_slowlog",
+      "name": "慢查询里出现注入语句",
+      "severity": "high",
+      "kind": "row",
+      "scope": "text",
+      "match": {
+        "raw": { "iregex": "(union[\\s\\+]+select|information_schema|sleep\\(\\d|benchmark\\(\\d|extractvalue\\(|updatexml\\()" }
+      },
+      "explain": "SQL 文本里出现注入函数或元数据查询，说明注入已经进入数据库执行层",
+      "false_positive": "数据库监控与数据同步工具会正常查询 information_schema；看是否伴随 sleep 与联合查询",
+      "tags": ["注入"],
+      "enabled": true
+    },
+    {
+      "id": "app_deserial_exception",
+      "name": "反序列化异常",
+      "severity": "high",
+      "kind": "row",
+      "scope": "text",
+      "match": {
+        "raw": { "iregex": "(classnotfoundexception[^\\n]{0,120}objectinputstream|invalidclassexception|ysoserial|java\\.io\\.streamcorruptedException|cannot deserialize)" }
+      },
+      "explain": "应用日志出现反序列化相关异常，多是利用链打失败或类缺失",
+      "false_positive": "RPC 框架版本不一致也会报同类异常；结合同时间段访问日志中的序列化载荷",
+      "tags": ["反序列化"],
+      "enabled": true
+    },
+    {
+      "id": "app_jndi_lookup",
+      "name": "JNDI 远程加载",
+      "severity": "high",
+      "kind": "row",
+      "scope": "text",
+      "match": {
+        "raw": { "iregex": "(jndi:(ldap|rmi|dns|iiop)://|lookup\\([^)]{0,40}(ldap|rmi)://)" }
+      },
+      "explain": "应用发起 JNDI 远程查找，Log4j/WebLogic 类漏洞的执行标志",
+      "false_positive": "少数企业应用用 LDAP 做统一认证；核对目标地址是否为内网目录服务",
+      "tags": ["RCE", "注入"],
+      "enabled": true
+    },
+    {
+      "id": "app_ognl_error",
+      "name": "OGNL 表达式异常",
+      "severity": "high",
+      "kind": "row",
+      "scope": "text",
+      "match": {
+        "raw": { "iregex": "(ognlexception|methodfailedexception[^\\n]{0,80}ognl|struts2?[^\\n]{0,40}expression|com\\.opensymphony\\.xwork)" }
+      },
+      "explain": "Struts2 在执行 OGNL 表达式时报错，多为漏洞利用尝试",
+      "false_positive": "老系统正常业务也会产生 OGNL 异常；看是否伴随特殊编码参数",
+      "tags": ["RCE"],
+      "enabled": true
+    },
+    {
+      "id": "app_xxe_error",
+      "name": "XML 外部实体异常",
+      "severity": "high",
+      "kind": "row",
+      "scope": "text",
+      "match": {
+        "raw": { "iregex": "(saxparseexception[^\\n]{0,120}(doctype|entity)|external entity|xmlreader[^\\n]{0,60}file://|doctype is disallowed)" }
+      },
+      "explain": "解析 XML 时触发了外部实体，XXE 漏洞正在被利用",
+      "false_positive": "接口对接时使用 DTD 会合法触发；确认是否访问了文件或内网地址",
+      "tags": ["XXE"],
+      "enabled": true
+    },
+    {
+      "id": "ct_k8s_exec",
+      "name": "进入容器执行命令",
+      "severity": "high",
+      "kind": "row",
+      "scope": "text",
+      "match": {
+        "raw": { "iregex": "(kubectl[^|]{0,40}\\bexec\\b|pods/exec|docker\\s+exec\\s+-it?\\s)" }
+      },
+      "explain": "通过 kubectl 或 docker 进入容器执行命令，横向移动与排查的常用入口",
+      "false_positive": "运维排障会频繁使用；核对执行账号与目标 pod 是否属于本人负责",
+      "tags": ["容器", "横向移动"],
+      "enabled": true
+    },
+    {
+      "id": "ct_k8s_secret_access",
+      "name": "读取 K8s Secret",
+      "severity": "high",
+      "kind": "row",
+      "scope": "text",
+      "match": {
+        "raw": { "iregex": "(kubectl[^|]{0,40}\\bget\\s+secrets?|secrets?\\s+-o\\s+(yaml|json)|serviceaccount[^\\n]{0,40}token)" }
+      },
+      "explain": "读取集群 Secret 或服务账号令牌，拿到后可直接访问 API 与云资源",
+      "false_positive": "部署脚本会读取 Secret 注入环境变量；看执行者是否为 CI 账号",
+      "tags": ["容器", "凭据窃取"],
+      "enabled": true
+    },
+    {
+      "id": "ct_docker_sock",
+      "name": "挂载 Docker 套接字",
+      "severity": "high",
+      "kind": "row",
+      "scope": "text",
+      "match": {
+        "raw": { "iregex": "(-v\\s*/var/run/docker\\.sock|/var/run/docker\\.sock:/)" }
+      },
+      "explain": "把宿主 Docker 套接字挂进容器，等于容器内可直接控制宿主机",
+      "false_positive": "CI 构建容器会合法挂载；确认是否为构建节点",
+      "tags": ["容器逃逸"],
+      "enabled": true
+    }
+  ]
+}

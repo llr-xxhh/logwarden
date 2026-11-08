@@ -1,0 +1,259 @@
+{
+  "version": "1.0",
+  "category": "web_attack",
+  "category_name": "Web 攻击手法",
+  "rules": [
+    {
+      "id": "web_sensitive_hit",
+      "name": "敏感文件访问成功",
+      "severity": "high",
+      "kind": "row",
+      "scope": "web",
+      "match": {
+        "path": { "iregex": "/(\\.git/|\\.svn/|\\.hg/|\\.ds_store|\\.env($|\\?)|web\\.config($|\\?)|id_rsa|id_dsa|\\.htpasswd|\\.bash_history|\\.aws/credentials|\\.kube/config)" },
+        "status": { "lt": 400 }
+      },
+      "explain": "代码仓库、环境变量、私钥或历史命令文件被成功读取，不是探测，是已经拿到",
+      "false_positive": "极少。若站点确实公开 .well-known 之类文档，需按路径加白名单",
+      "tags": ["信息泄露"],
+      "enabled": true
+    },
+    {
+      "id": "web_backup_download",
+      "name": "备份或源码包被下载",
+      "severity": "medium",
+      "kind": "row",
+      "scope": "web",
+      "match": {
+        "path": { "iregex": "\\.(zip|tar|tgz|tar\\.gz|rar|7z|sql|bak|old|orig|swp|dump|mdb)($|\\?)" },
+        "status": { "lt": 400 }
+      },
+      "explain": "下载压缩包、数据库导出或编辑器备份文件，常是整站源码或数据外带的入口",
+      "false_positive": "软件下载站、报表导出接口正常返回 zip/xlsx；按目录与业务确认",
+      "tags": ["信息泄露", "外带"],
+      "enabled": true
+    },
+    {
+      "id": "web_cmd_param",
+      "name": "命令执行类参数",
+      "severity": "high",
+      "kind": "row",
+      "scope": "web",
+      "match": {
+        "path": { "iregex": "[?&](cmd|exec|execute|command|shell|system|ant|passthru|popen)=[^&]" }
+      },
+      "explain": "参数名直接是命令执行入口，PHP/JSP 后门与部分管理插件常用这种写法",
+      "false_positive": "少数运维面板有同名正常参数；看返回内容是否为命令输出",
+      "tags": ["执行"],
+      "enabled": true
+    },
+    {
+      "id": "web_eval_param",
+      "name": "代码执行函数出现在参数里",
+      "severity": "high",
+      "kind": "row",
+      "scope": "web",
+      "match": {
+        "path": { "iregex": "(eval|assert|create_function|base64_decode|gzinflate|str_rot13)\\s*\\(" }
+      },
+      "explain": "请求参数里出现 PHP 代码执行或解码函数，多为后门或一句话木马",
+      "false_positive": "极少。前端模板引擎偶有同名关键字，需看上下文",
+      "tags": ["执行", "Webshell"],
+      "enabled": true
+    },
+    {
+      "id": "web_include_system_file",
+      "name": "包含系统文件",
+      "severity": "high",
+      "kind": "row",
+      "scope": "web",
+      "match": {
+        "path": { "iregex": "[?&](file|include|inc|require|page|template|module|lang|path|doc|view)=[^&]*(\\.\\./|/etc/|/proc/self/|php://|file://|data://|expect://|zip://|phar://)" }
+      },
+      "explain": "参数把包含目标指向系统文件或伪协议，属于文件包含漏洞利用",
+      "false_positive": "极少。内容管理系统的模板切换参数可能带相对路径，需确认是否越出站点目录",
+      "tags": ["注入", "文件包含"],
+      "enabled": true
+    },
+    {
+      "id": "web_deserial",
+      "name": "反序列化载荷特征",
+      "severity": "high",
+      "kind": "row",
+      "scope": "web",
+      "match": {
+        "any": [
+          { "path": { "iregex": "(rO0AB|aced0005|ysoserial|ObjectInputStream)" } },
+          { "ua": { "iregex": "(ysoserial|CommonsCollections|jdk7u21|spring-aop)" } },
+          { "ref": { "iregex": "(rO0AB|aced0005)" } }
+        ]
+      },
+      "explain": "出现 Java 序列化魔数（Base64 的 rO0AB）或利用链名称，Shiro、WebLogic、Fastjson 攻击的典型特征",
+      "false_positive": "极少。部分 Java 客户端会在 Cookie 里放序列化对象，需确认业务是否本就如此",
+      "tags": ["反序列化"],
+      "enabled": true
+    },
+    {
+      "id": "web_jndi",
+      "name": "JNDI 注入（Log4j 类）",
+      "severity": "high",
+      "kind": "row",
+      "scope": "web",
+      "match": {
+        "any": [
+          { "path": { "iregex": "\\$\\{jndi:(ldap|rmi|dns|http|iiop|corba)" } },
+          { "ua": { "iregex": "\\$\\{jndi:" } },
+          { "ref": { "iregex": "\\$\\{jndi:" } }
+        ]
+      },
+      "explain": "请求路径、UA 或 Referer 中出现 ${jndi:...}，是 Log4j2 远程加载的固定载荷",
+      "false_positive": "极少。若业务本身展示这段字符串（如漏洞演示页），人工确认即可",
+      "tags": ["注入", "RCE"],
+      "enabled": true
+    },
+    {
+      "id": "web_ognl",
+      "name": "OGNL / Struts2 表达式",
+      "severity": "high",
+      "kind": "row",
+      "scope": "web",
+      "match": {
+        "path": { "iregex": "(%24%7b|%25%7b|ognl|@java\\.lang|redirect:|action:)" }
+      },
+      "explain": "URL 编码的 ${ 或 OGNL 关键字，是 Struts2 系列漏洞的载荷写法",
+      "false_positive": "部分搜索引擎会把 ${ 编码后传参；结合命中接口是否为 struts action 判断",
+      "tags": ["注入", "RCE"],
+      "enabled": true
+    },
+    {
+      "id": "web_ssrf",
+      "name": "SSRF 参数指向外部地址",
+      "severity": "medium",
+      "kind": "row",
+      "scope": "web",
+      "match": {
+        "path": { "iregex": "[?&](url|uri|link|src|target|dest|redirect|callback|image|fetch|proxy|next|return|domain|site)=https?(%3a|:|//)" }
+      },
+      "explain": "参数里直接带外部 URL，常见于图片代理、回调、抓取接口，易被用来探测内网",
+      "false_positive": "正常的分享链接、图片外链会命中；看目标地址是否为内网或元数据地址",
+      "tags": ["SSRF"],
+      "enabled": true
+    },
+    {
+      "id": "web_api_expose",
+      "name": "敏感管理接口暴露",
+      "severity": "high",
+      "kind": "row",
+      "scope": "web",
+      "match": {
+        "path": { "iregex": "/(actuator/(env|heapdump|jolokia|metrics)|v2/api-docs|swagger-ui|swagger-resources|druid/(index|sql)|nacos/|eureka/apps|jolokia/|solr/admin|h2-console|jolokia/exec)" }
+      },
+      "explain": "Spring Actuator、Swagger、Druid、Nacos 等组件未鉴权即可访问，常被直接用来读配置或执行",
+      "false_positive": "开发测试环境有意开放；生产环境出现需处置",
+      "tags": ["配置暴露"],
+      "enabled": true
+    },
+    {
+      "id": "web_upload_exec",
+      "name": "上传目录里的脚本被请求",
+      "severity": "high",
+      "kind": "row",
+      "scope": "web",
+      "match": {
+        "path": { "iregex": "/(upload|uploads|upfile|attachment|attachments|temp|tmp|files|images|img)/[^?]*\\.(php|jsp|jspx|aspx|ashx|asa|cer)($|\\?)" },
+        "status": { "lt": 400 }
+      },
+      "explain": "上传目录本不该有可执行脚本，被成功请求基本等于 WebShell 已落地并执行",
+      "false_positive": "极少。若站点确实把脚本放在 upload 目录并正常路由，需要加白名单",
+      "tags": ["Webshell", "落地"],
+      "enabled": true
+    },
+    {
+      "id": "web_shell_name",
+      "name": "WebShell 常见文件名",
+      "severity": "medium",
+      "kind": "row",
+      "scope": "web",
+      "match": {
+        "path": { "iregex": "/(cmd|shell|webshell|c99|r57|b374k|wso|marijuana|bypass|backdoor|hacktool|killer|zacos|1|2|test|xx|x|zz)\\.(php|jsp|jspx|aspx|ashx)($|\\?)" }
+      },
+      "explain": "短名或黑客工具惯用文件名，多为上传后的落点",
+      "false_positive": "test.php、1.php 这类短名在老旧业务里真实存在；必须结合目录与首次出现时间",
+      "tags": ["Webshell"],
+      "enabled": true
+    },
+    {
+      "id": "web_method_odd",
+      "name": "异常 HTTP 方法",
+      "severity": "medium",
+      "kind": "row",
+      "scope": "web",
+      "match": {
+        "method": { "in": ["TRACE", "CONNECT", "PROPFIND", "MOVE", "COPY", "DELETE"] }
+      },
+      "explain": "TRACE/CONNECT 等非常规方法，或 DELETE 直接发到业务接口，多为测试漏洞或删除数据",
+      "false_positive": "WebDAV、REST 接口会正常使用 PROPFIND / DELETE；按接口清单确认",
+      "tags": ["探测"],
+      "enabled": true
+    },
+    {
+      "id": "web_big_download",
+      "name": "单次大文件下载",
+      "severity": "low",
+      "kind": "row",
+      "scope": "web",
+      "match": {
+        "status": { "eq": 200 },
+        "bytes": { "gt": 10485760 }
+      },
+      "explain": "单条响应超过 10 MB，可能是数据外带或大文件下载",
+      "false_positive": "正常的安装包、视频、导出任务都会命中；按来源 IP 与路径判断",
+      "tags": ["外带"],
+      "enabled": true
+    },
+    {
+      "id": "web_null_byte",
+      "name": "空字节与多重编码",
+      "severity": "high",
+      "kind": "row",
+      "scope": "web",
+      "match": {
+        "path": { "iregex": "(%00|%2500|%c0%ae|\\.\\.%252f|%252e%252e)" }
+      },
+      "explain": "空字节截断或多重 URL 编码，用于绕过扩展名与路径校验",
+      "false_positive": "极少。部分老系统会对参数做二次编码，需人工确认",
+      "tags": ["绕过"],
+      "enabled": true
+    },
+    {
+      "id": "web_tool_ua",
+      "name": "脚本工具默认 UA",
+      "severity": "low",
+      "kind": "row",
+      "scope": "web",
+      "match": {
+        "ua": { "iregex": "^(curl|wget|python-requests|python-urllib|go-http-client|java/|okhttp|libwww-perl|httpclient|axios|postmanruntime|insomnia)" }
+      },
+      "explain": "请求方是命令行或编程语言 HTTP 库，不是浏览器",
+      "false_positive": "监控探针、健康检查、内部调用大量使用；只在业务时段异常出现时有意义",
+      "tags": ["扫描"],
+      "enabled": true
+    },
+    {
+      "id": "web_upload_post",
+      "name": "向上传接口提交文件",
+      "severity": "medium",
+      "kind": "row",
+      "scope": "web",
+      "match": {
+        "method": { "eq": "POST" },
+        "path": { "iregex": "/(upload|uploads|upfile|attachment|fileupload|uploadfile)" },
+        "status": { "lt": 400 }
+      },
+      "explain": "成功向上传接口提交文件，需核对上传内容与落点",
+      "false_positive": "正常业务附件上传会大量命中；关注随后是否访问上传目录下的脚本",
+      "tags": ["上传", "Webshell"],
+      "enabled": true
+    }
+  ]
+}

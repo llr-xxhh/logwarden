@@ -1,0 +1,16 @@
+{
+  "id": "linux-host",
+  "name": "CentOS 主机体检",
+  "subtitle": "secure + messages + cron + yum/dnf",
+  "scene": "排查 CentOS / RHEL / Rocky / Alma 主机是否被入侵",
+  "components": ["centos", "centos_auditd"],
+  "suggested": ["firewall"],
+  "checks": [
+    "lastlog 中是否有长期未登录、近期突然登录的账号",
+    "是否存在 UID=0 的非 root 账号（后门账号）",
+    "/etc/passwd 与 /etc/shadow 的修改时间是否异常",
+    "cron 与 systemd timer 中是否有回连型任务",
+    "是否有 SUID 文件被人为替换",
+    "包管理日志中是否出现了 gcc、netcat、nmap 等攻击工具"
+  ]
+}

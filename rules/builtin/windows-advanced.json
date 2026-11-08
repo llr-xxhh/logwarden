@@ -1,0 +1,223 @@
+{
+  "version": "1.0",
+  "category": "windows_advanced",
+  "category_name": "Windows 滥用与持久化",
+  "rules": [
+    {
+      "id": "win_remote_service_unc",
+      "name": "服务指向远程共享程序 7045",
+      "severity": "high",
+      "kind": "row",
+      "scope": "win",
+      "match": {
+        "eventId": { "eq": 7045 },
+        "msg": { "iregex": "\\\\\\\\[^\\\\\\s]+\\\\[^\\s]+\\.(exe|dll|bat|cmd|ps1)" }
+      },
+      "explain": "新安装服务的二进制路径位于 UNC 网络共享，常见于远程创建服务或横向移动",
+      "false_positive": "少数企业软件从共享目录部署服务；核对服务名、源主机和部署记录",
+      "triage": "提取服务名、完整 ImagePath 与共享主机，关联同源 4624/4648 和目标主机进程事件",
+      "attack": ["T1543.003", "T1021.002"],
+      "references": ["https://learn.microsoft.com/en-us/windows/security/threat-protection/auditing/event-7045", "https://attack.mitre.org/techniques/T1543/003/"],
+      "enabled": true
+    },
+    {
+      "id": "win_bitsadmin_transfer",
+      "name": "BITS 下载远程载荷",
+      "severity": "high",
+      "kind": "row",
+      "scope": ["win", "sysmon"],
+      "match": {
+        "eventId": { "in": [1, 4688] },
+        "any": [
+          { "cmdline": { "iregex": "bitsadmin\\b[^|]{0,160}/transfer[^|]{0,160}https?://" } },
+          { "msg": { "iregex": "bitsadmin\\b[^|]{0,160}/transfer[^|]{0,160}https?://" } }
+        ]
+      },
+      "explain": "bitsadmin /transfer 从 HTTP 地址下载文件，可同时用于载荷投递和持久化",
+      "false_positive": "企业软件分发和补丁脚本会使用 BITS；核对任务名、域名和落地路径",
+      "triage": "提取 BITS 任务名、URL 与本地路径，检查随后是否执行落地文件",
+      "attack": ["T1197", "T1105"],
+      "references": ["https://attack.mitre.org/techniques/T1197/", "https://lolbas-project.github.io/lolbas/Binaries/Bitsadmin/"],
+      "enabled": true
+    },
+    {
+      "id": "win_mshta_remote",
+      "name": "mshta 执行远程脚本",
+      "severity": "high",
+      "kind": "row",
+      "scope": ["win", "sysmon"],
+      "match": {
+        "eventId": { "in": [1, 4688] },
+        "any": [
+          { "cmdline": { "iregex": "mshta(\\s|\\.exe)[^|]{0,160}https?://" } },
+          { "msg": { "iregex": "mshta(\\s|\\.exe)[^|]{0,160}https?://" } }
+        ]
+      },
+      "explain": "系统自带 HTML 应用宿主直接加载远程地址，是典型的代理执行与无文件落地方式",
+      "false_positive": "极少；老旧管理系统可能远程加载 HTA，需按地址白名单确认",
+      "triage": "保留完整 URL 与父进程，检查随后生成的脚本、子进程和网络连接",
+      "attack": ["T1218.005"],
+      "references": ["https://attack.mitre.org/techniques/T1218/005/", "https://lolbas-project.github.io/lolbas/Binaries/Mshta/"],
+      "enabled": true
+    },
+    {
+      "id": "win_regsvr32_remote",
+      "name": "regsvr32 加载远程脚本",
+      "severity": "high",
+      "kind": "row",
+      "scope": ["win", "sysmon"],
+      "match": {
+        "eventId": { "in": [1, 4688] },
+        "any": [
+          { "cmdline": { "iregex": "regsvr32[^|]{0,120}/i\\s*:?\\s*https?://" } },
+          { "msg": { "iregex": "regsvr32[^|]{0,120}/i\\s*:?\\s*https?://" } }
+        ]
+      },
+      "explain": "regsvr32 通过 /i 指定远程脚本组件，可代理执行并绕过部分应用控制",
+      "false_positive": "极少；软件注册组件通常使用本地 DLL，不需要远程 URL",
+      "triage": "保留 URL 与 scrobj.dll 参数，检查父进程和后续脚本宿主行为",
+      "attack": ["T1218.010"],
+      "references": ["https://attack.mitre.org/techniques/T1218/010/", "https://lolbas-project.github.io/lolbas/Binaries/Regsvr32/"],
+      "enabled": true
+    },
+    {
+      "id": "win_rundll32_script",
+      "name": "rundll32 执行脚本或异常文件",
+      "severity": "high",
+      "kind": "row",
+      "scope": ["win", "sysmon"],
+      "match": {
+        "eventId": { "in": [1, 4688] },
+        "any": [
+          { "cmdline": { "iregex": "rundll32[^|]{0,180}(javascript:|vbscript:|\\.txt\\b|\\.html?\\b)" } },
+          { "msg": { "iregex": "rundll32[^|]{0,180}(javascript:|vbscript:|\\.txt\\b|\\.html?\\b)" } }
+        ]
+      },
+      "explain": "rundll32 调用 javascript/vbscript 协议或非 DLL 文件，属于异常代理执行",
+      "false_positive": "极少；特殊安装器可能调用非标准导出，但 javascript 协议应重点处置",
+      "triage": "还原完整命令行与父进程，提取被调用文件并检查是否伴随浏览器或 Office 启动",
+      "attack": ["T1218.011"],
+      "references": ["https://attack.mitre.org/techniques/T1218/011/", "https://lolbas-project.github.io/lolbas/Binaries/Rundll32/"],
+      "enabled": true
+    },
+    {
+      "id": "win_wmi_remote_create",
+      "name": "WMI 创建远程进程",
+      "severity": "high",
+      "kind": "row",
+      "scope": ["win", "sysmon"],
+      "match": {
+        "eventId": { "in": [1, 4688] },
+        "any": [
+          { "cmdline": { "iregex": "wmic[^|]{0,100}/node:[^|]{0,100}process\\s+call\\s+create" } },
+          { "msg": { "iregex": "wmic[^|]{0,100}/node:[^|]{0,100}process\\s+call\\s+create" } }
+        ]
+      },
+      "explain": "wmic 指定远程节点并调用 process call create，是横向执行命令的典型方式",
+      "false_positive": "运维批量管理工具可能使用；核对管理跳板机和授权目标清单",
+      "triage": "提取远程节点、执行命令和凭据账号，关联目标端 4624/4648 与新进程",
+      "attack": ["T1047", "T1021.006"],
+      "references": ["https://attack.mitre.org/techniques/T1047/", "https://attack.mitre.org/techniques/T1021/006/"],
+      "enabled": true
+    },
+    {
+      "id": "win_privilege_assign",
+      "name": "用户权限被分配 4704",
+      "severity": "high",
+      "kind": "row",
+      "scope": "win",
+      "match": { "eventId": { "eq": 4704 } },
+      "explain": "账号被分配用户权限，例如作为服务登录、批量作业或调试程序，可能用于权限维持",
+      "false_positive": "组策略下发、服务账号初始化会正常产生；核对变更单与权限类型",
+      "triage": "确认被修改账号、权限名称和修改者，检查是否同时加入管理员组或创建服务",
+      "attack": ["T1098"],
+      "references": ["https://learn.microsoft.com/en-us/windows/security/threat-protection/auditing/event-4704", "https://attack.mitre.org/techniques/T1098/"],
+      "enabled": true
+    },
+    {
+      "id": "win_directory_service_change",
+      "name": "目录服务对象被修改 5136",
+      "severity": "low",
+      "kind": "row",
+      "scope": "win",
+      "match": { "eventId": { "eq": 5136 } },
+      "explain": "Active Directory 对象属性被修改，可用于追踪账号、组策略和权限变更",
+      "false_positive": "域环境日常变更量很大，不能单独作为异常；只在关联排查时启用",
+      "triage": "结合修改账号、对象类别和属性名判断，重点关注组策略、服务主体名称和权限属性",
+      "attack": ["T1098", "T1484"],
+      "references": ["https://learn.microsoft.com/en-us/windows/security/threat-protection/auditing/event-5136", "https://attack.mitre.org/techniques/T1484/"],
+      "enabled": false
+    },
+    {
+      "id": "win_kerberos_rc4",
+      "name": "Kerberos 票据请求使用 RC4 4768",
+      "severity": "medium",
+      "kind": "row",
+      "scope": "win",
+      "match": {
+        "eventId": { "eq": 4768 },
+        "msg": { "iregex": "(0x17|RC4-HMAC)" }
+      },
+      "explain": "TGT 请求使用 RC4 加密，可能是老旧客户端，也可能是 Kerberoasting 前的票据活动",
+      "false_positive": "旧系统、兼容性配置会正常请求 RC4；需结合账号、服务与请求量",
+      "triage": "核对账号是否服务账号、来源是否异常，并关联 4769 的服务票据请求频率",
+      "attack": ["T1558.003"],
+      "references": ["https://learn.microsoft.com/en-us/windows/security/threat-protection/auditing/event-4768", "https://attack.mitre.org/techniques/T1558/003/"],
+      "enabled": true
+    },
+    {
+      "id": "sm_startup_folder_drop",
+      "name": "启动目录写入执行文件",
+      "severity": "high",
+      "kind": "row",
+      "scope": "sysmon",
+      "match": {
+        "eventId": { "eq": 11 },
+        "target": { "iregex": "\\\\Start Menu\\\\Programs\\\\Startup\\\\[^\\\\]+\\.(exe|dll|ps1|bat|cmd|vbs|js|hta|lnk)$" }
+      },
+      "explain": "向用户启动目录写入程序或脚本，登录后会自动执行，是直接的持久化证据",
+      "false_positive": "正规软件安装也会创建快捷方式；重点看写入进程和实际目标是否位于临时目录",
+      "triage": "提取文件哈希与写入进程，检查快捷方式真实目标和对应 Run 键",
+      "attack": ["T1547.001"],
+      "references": ["https://attack.mitre.org/techniques/T1547/001/", "https://learn.microsoft.com/en-us/sysinternals/downloads/sysmon"],
+      "enabled": true
+    },
+    {
+      "id": "sm_dotnet_compile",
+      "name": "临时目录调用 .NET 编译执行工具",
+      "severity": "medium",
+      "kind": "row",
+      "scope": ["win", "sysmon"],
+      "match": {
+        "eventId": { "in": [1, 4688] },
+        "any": [
+          { "cmdline": { "iregex": "(csc|msbuild|installutil|regasm|regsvcs)\\.exe[^|]{0,200}(\\\\Temp\\\\|\\\\AppData\\\\|\\\\Users\\\\Public\\\\)" } },
+          { "msg": { "iregex": "(csc|msbuild|installutil|regasm|regsvcs)\\.exe[^|]{0,200}(\\\\Temp\\\\|\\\\AppData\\\\|\\\\Users\\\\Public\\\\)" } }
+        ]
+      },
+      "explain": "编译或注册工具处理临时目录中的文件，可能是滥用系统可信程序执行自定义代码",
+      "false_positive": "开发构建、安装程序会触发；服务器上非部署时段出现更可疑",
+      "triage": "检查源文件、父进程和编译输出，确认是否属于软件部署任务",
+      "attack": ["T1127", "T1218"],
+      "references": ["https://attack.mitre.org/techniques/T1127/", "https://lolbas-project.github.io/"],
+      "enabled": true
+    },
+    {
+      "id": "sm_defender_registry",
+      "name": "注册表关闭 Defender 防护",
+      "severity": "high",
+      "kind": "row",
+      "scope": "sysmon",
+      "match": {
+        "eventId": { "eq": 13 },
+        "target": { "iregex": "(Windows Defender|Microsoft\\\\Windows Defender)[^\\r\\n]*(DisableAntiSpyware|DisableRealtimeMonitoring|DisableBehaviorMonitoring|DisableOnAccessProtection)" }
+      },
+      "explain": "通过注册表写入禁用 Defender 的关键开关，属于直接削弱主机防护",
+      "false_positive": "组策略或安全软件迁移可能修改；需要核对管理工具与变更窗口",
+      "triage": "确认写入进程和目标值，检查随后是否投放载荷、删除卷影或关闭其他防护",
+      "attack": ["T1562.001"],
+      "references": ["https://attack.mitre.org/techniques/T1562/001/", "https://learn.microsoft.com/en-us/sysinternals/downloads/sysmon"],
+      "enabled": true
+    }
+  ]
+}

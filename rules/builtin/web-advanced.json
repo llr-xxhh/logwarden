@@ -1,0 +1,141 @@
+{
+  "version": "1.0",
+  "category": "web_advanced",
+  "category_name": "Web 绕过与注入",
+  "rules": [
+    {
+      "id": "web_jndi_obfuscated",
+      "name": "JNDI 载荷混淆绕过",
+      "severity": "high",
+      "kind": "row",
+      "scope": "web",
+      "match": {
+        "any": [
+          { "path": { "iregex": "(?=[\\s\\S]*(jndi|ldap|rmi|dns))(?=[\\s\\S]*\\$\\{\\$\\{(lower|upper|env|sys|base64):)" } },
+          { "ua": { "iregex": "(?=[\\s\\S]*(jndi|ldap|rmi|dns))(?=[\\s\\S]*\\$\\{\\$\\{(lower|upper|env|sys|base64):)" } },
+          { "ref": { "iregex": "(?=[\\s\\S]*(jndi|ldap|rmi|dns))(?=[\\s\\S]*\\$\\{\\$\\{(lower|upper|env|sys|base64):)" } }
+        ]
+      },
+      "explain": "使用 ${lower:j}、${upper:J} 等嵌套表达式拼接 JNDI 关键字，专门绕过只匹配 ${jndi: 的规则",
+      "false_positive": "极少；漏洞扫描器也会使用此类绕过字符串，需结合来源确认是扫描还是实际攻击",
+      "triage": "还原完整 UA、Referer 和查询参数，随后查异常 DNS、LDAP 出站连接及 Java 进程网络连接",
+      "attack": ["T1190", "T1027"],
+      "references": ["https://attack.mitre.org/techniques/T1190/", "https://attack.mitre.org/techniques/T1027/"],
+      "enabled": true
+    },
+    {
+      "id": "web_xss_probe",
+      "name": "跨站脚本载荷",
+      "severity": "medium",
+      "kind": "row",
+      "scope": "web",
+      "match": {
+        "path": { "iregex": "(<script|%3cscript|javascript:|onerror\\s*=|onload\\s*=|<svg|%3csvg|<iframe|%3ciframe)" }
+      },
+      "explain": "查询字符串中出现脚本标签、事件处理器或 javascript 协议，符合反射型 XSS 探测",
+      "false_positive": "富文本接口可能正常提交 HTML，但访问日志中的 GET 参数出现此类内容通常不是正常业务",
+      "triage": "确认参数是否原样反射到响应，检查受影响页面与会话上下文，不要仅凭请求判定漏洞存在",
+      "attack": ["T1190"],
+      "references": ["https://owasp.org/www-community/attacks/xss/", "https://attack.mitre.org/techniques/T1190/"],
+      "enabled": true
+    },
+    {
+      "id": "web_ssti_probe",
+      "name": "模板注入表达式",
+      "severity": "high",
+      "kind": "row",
+      "scope": "web",
+      "match": {
+        "path": { "iregex": "(%7b%7b|\\{\\{)[^&]{0,300}(7\\s*\\*\\s*7|config|self|request|class|mro|subclasses|lipsum|cycler)" }
+      },
+      "explain": "双花括号表达式中包含算术验证、配置对象或 Python 对象遍历，符合 SSTI 探测与利用",
+      "false_positive": "前端模板示例页、开发调试可能提交类似内容；生产业务参数中较少见",
+      "triage": "定位模板参数与响应结果，检查是否返回 49、配置内容或系统对象信息",
+      "attack": ["T1190"],
+      "references": ["https://owasp.org/www-project-web-security-testing-guide/stable/4-Web_Application_Security_Testing/07-Input_Validation_Testing/18-Testing_for_Server-side_Template_Injection"],
+      "enabled": true
+    },
+    {
+      "id": "web_xxe_probe",
+      "name": "XML 外部实体注入",
+      "severity": "high",
+      "kind": "row",
+      "scope": "web",
+      "match": {
+        "path": { "iregex": "(<!doctype|%3c!doctype|<!entity|%3c!entity|system\\s+[\"']?file:|php://filter)" }
+      },
+      "explain": "请求中出现 DOCTYPE、ENTITY、file:// 或 php://filter，可能尝试读取本地文件或发起 SSRF",
+      "false_positive": "XML 接口正常声明 DOCTYPE 较少见但仍存在；重点看是否定义外部实体及系统路径",
+      "triage": "检查 XML 解析服务是否禁用外部实体，并核对同时段 DNS、HTTP 异常出站请求",
+      "attack": ["T1190", "T1059"],
+      "references": ["https://owasp.org/www-community/vulnerabilities/XML_External_Entity_(XXE)_Processing"],
+      "enabled": true
+    },
+    {
+      "id": "web_double_extension",
+      "name": "脚本双扩展名访问成功",
+      "severity": "high",
+      "kind": "row",
+      "scope": "web",
+      "match": {
+        "path": { "iregex": "\\.(php|phtml|phar|jsp|jspx|asp|aspx|ashx)\\.(jpg|jpeg|png|gif|txt|pdf)($|\\?)" },
+        "status": { "lt": 400 }
+      },
+      "explain": "shell.php.jpg 这类双扩展名被成功访问，常用于绕过上传白名单并解析为脚本",
+      "false_positive": "极少数旧系统会生成类似文件名；需要确认实际内容类型与文件落点",
+      "triage": "定位上传记录和文件真实扩展名，检查返回内容是否为脚本执行结果",
+      "attack": ["T1505.003", "T1036.008"],
+      "references": ["https://attack.mitre.org/techniques/T1505/003/", "https://attack.mitre.org/techniques/T1036/008/"],
+      "enabled": true
+    },
+    {
+      "id": "web_graphql_introspection",
+      "name": "GraphQL 内省查询",
+      "severity": "medium",
+      "kind": "row",
+      "scope": "web",
+      "match": {
+        "path": { "iregex": "(?i)(graphql|gql)[^\\s]*(__schema|__type|introspection)" }
+      },
+      "explain": "GraphQL 请求包含 __schema、__type 等内省字段，可枚举完整接口结构",
+      "false_positive": "开发调试、接口文档生成和前端工具会正常内省；生产环境来自陌生地址时应核查",
+      "triage": "确认生产环境是否应开放内省，检查同来源随后是否调用敏感 mutation 或批量查询",
+      "attack": ["T1592.004"],
+      "references": ["https://attack.mitre.org/techniques/T1592/004/", "https://graphql.org/learn/introspection/"],
+      "enabled": true
+    },
+    {
+      "id": "web_encoded_traversal",
+      "name": "编码与分号路径穿越",
+      "severity": "high",
+      "kind": "row",
+      "scope": "web",
+      "match": {
+        "path": { "iregex": "(%2e%2e|\\.\\.;|\\.\\.\\\\|%2e%2e%2f|%252e%252e|\\.\\.%c0%af)" }
+      },
+      "explain": "使用 URL 编码、分号或反斜杠变体构造 ../，用于绕过规范化检查读取目录外文件",
+      "false_positive": "少数旧系统会对正常相对路径二次编码；出现 /etc、WEB-INF 等目标时风险更高",
+      "triage": "对路径做两轮 URL 解码后确认真实目标，检查响应是否包含系统文件或应用配置",
+      "attack": ["T1190", "T1083"],
+      "references": ["https://owasp.org/www-community/attacks/Path_Traversal", "https://attack.mitre.org/techniques/T1083/"],
+      "enabled": true
+    },
+    {
+      "id": "web_gateway_route_change",
+      "name": "Spring Gateway 路由修改",
+      "severity": "high",
+      "kind": "row",
+      "scope": "web",
+      "match": {
+        "method": { "in": ["POST", "DELETE", "PUT"] },
+        "path": { "iregex": "/actuator/gateway/(routes|refresh)" }
+      },
+      "explain": "向 Spring Cloud Gateway 路由或刷新接口提交修改，可能创建恶意路由并触发 SpEL 执行",
+      "false_positive": "授权运维可能调用路由管理接口；必须核对变更单、来源和提交内容",
+      "triage": "立即核对新增或删除的路由、过滤器与目标 URI，并检查是否访问 refresh 触发加载",
+      "attack": ["T1190", "T1505.003"],
+      "references": ["https://attack.mitre.org/techniques/T1190/"],
+      "enabled": true
+    }
+  ]
+}

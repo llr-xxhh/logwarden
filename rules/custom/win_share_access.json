@@ -1,0 +1,26 @@
+{
+  "id": "win_share_access",
+  "name": "访问网络共享 5140/5145",
+  "severity": "low",
+  "kind": "row",
+  "scope": "win",
+  "match": {
+    "eventId": {
+      "in": [
+        5140,
+        5145
+      ]
+    }
+  },
+  "explain": "访问 SMB 共享，横向移动与数据收集的常见动作",
+  "false_positive": "文件服务器日常访问量极大；只看管理共享（C$、ADMIN$）与非常用来源",
+  "tags": [
+    "横向移动"
+  ],
+  "enabled": false,
+  "category": "windows_auth",
+  "category_name": "Windows 登录与账号",
+  "builtin": true,
+  "priority": 100,
+  "updated_at": "2026-11-06T01:47:09+00:00"
+}

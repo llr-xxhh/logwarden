@@ -1,0 +1,14 @@
+{
+  "id": "mixed",
+  "name": "混合环境",
+  "subtitle": "Windows + Linux 多源",
+  "scene": "一次事件涉及多台异构主机，需要跨源拼时间线",
+  "components": ["nginx", "centos", "windows", "sysmon", "firewall"],
+  "suggested": ["iis", "tomcat", "mysql", "oracle", "centos_auditd", "powershell"],
+  "checks": [
+    "所有来源的时区是否已统一（Windows 记 UTC，nginx 记本地时间，混在一起时间线必错）",
+    "同一 IP 是否在 Web 日志与系统认证日志中同时出现",
+    "攻击链是否跨系统：入口在 Linux，横向目标在 Windows",
+    "各主机时钟偏差是否超过 1 分钟（超了时间线不可信）"
+  ]
+}

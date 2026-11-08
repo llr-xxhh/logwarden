@@ -1,0 +1,51 @@
+{
+  "version": "0.2",
+  "category": "webshell",
+  "category_name": "Webshell 痕迹",
+  "rules": [
+    {
+      "id": "ws_access",
+      "name": "脚本文件被访问",
+      "severity": "medium",
+      "kind": "row",
+      "scope": "web",
+      "match": {
+        "path": { "regex": "\\.(php|jsp|jspx|aspx|ashx|asa)(\\?|$)" }
+      },
+      "explain": "访问动态脚本，需确认为已知业务文件",
+      "false_positive": "业务本身就是 PHP/JSP 站点时会大量命中，必须配合路径白名单",
+      "tags": ["入口"],
+      "enabled": true
+    },
+    {
+      "id": "ws_tiny_response",
+      "name": "脚本返回极短内容",
+      "severity": "high",
+      "kind": "row",
+      "scope": "web",
+      "match": {
+        "path": { "regex": "\\.(php|jsp|aspx)$" },
+        "status": { "eq": 200 },
+        "bytes": { "lt": 200 }
+      },
+      "explain": "脚本返回极短内容，符合一句话木马执行命令后的返回特征",
+      "false_positive": "心跳接口、探活接口也会返回极短内容；确认该路径是否为已知接口",
+      "tags": ["执行"],
+      "enabled": true
+    },
+    {
+      "id": "ws_size_shift",
+      "name": "同路径响应体积突变",
+      "severity": "high",
+      "kind": "aggregate",
+      "scope": "web",
+      "match": {
+        "agg": { "type": "path_baseline_shift", "min_samples": 20, "ratio_lt": 0.2 }
+      },
+      "explain": "某路径的响应体积骤降到历史基线的 20% 以下",
+      "false_positive": "页面改版、灰度发布会造成正常波动；核对变更时间点",
+      "tags": ["执行", "基线"],
+      "enabled": true
+    }
+  ]
+}

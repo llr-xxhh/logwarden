@@ -1,0 +1,29 @@
+{
+  "id": "win_directory_service_change",
+  "name": "目录服务对象被修改 5136",
+  "severity": "low",
+  "kind": "row",
+  "scope": "win",
+  "match": {
+    "eventId": {
+      "eq": 5136
+    }
+  },
+  "explain": "Active Directory 对象属性被修改，可用于追踪账号、组策略和权限变更",
+  "false_positive": "域环境日常变更量很大，不能单独作为异常；只在关联排查时启用",
+  "triage": "结合修改账号、对象类别和属性名判断，重点关注组策略、服务主体名称和权限属性",
+  "attack": [
+    "T1098",
+    "T1484"
+  ],
+  "references": [
+    "https://learn.microsoft.com/en-us/windows/security/threat-protection/auditing/event-5136",
+    "https://attack.mitre.org/techniques/T1484/"
+  ],
+  "enabled": false,
+  "category": "windows_advanced",
+  "category_name": "Windows 滥用与持久化",
+  "builtin": true,
+  "priority": 100,
+  "updated_at": "2026-11-06T01:46:52+00:00"
+}

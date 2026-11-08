@@ -1,0 +1,259 @@
+{
+  "version": "1.0",
+  "category": "linux_host",
+  "category_name": "Linux 主机行为",
+  "rules": [
+    {
+      "id": "lx_reverse_shell",
+      "name": "反弹 Shell 特征",
+      "severity": "high",
+      "kind": "row",
+      "scope": ["auth", "syslog", "shell", "audit"],
+      "match": {
+        "raw": { "iregex": "(/dev/tcp/|/dev/udp/|nc\\s+(-[a-z]*e|--exec)|ncat\\s+(-[a-z]*e|--exec)|bash\\s+-i\\s+>&|sh\\s+-i\\s+>&|socat\\s+.*exec|python[23]?\\s+-c\\s+.*socket\\.)" }
+      },
+      "explain": "用 bash 伪终端或 nc/socat/python 建立回连，获得交互式 shell",
+      "false_positive": "极少。运维脚本不会这样写；若为渗透测试需核对授权",
+      "tags": ["后门", "C2"],
+      "enabled": true
+    },
+    {
+      "id": "lx_download_exec",
+      "name": "下载后直接执行",
+      "severity": "high",
+      "kind": "row",
+      "scope": ["auth", "syslog", "shell", "audit"],
+      "match": {
+        "raw": { "iregex": "(curl[^|;]{0,80}\\|\\s*(ba)?sh|wget[^|;]{0,80}(-O\\s*-|\\.sh)[^|;]{0,20}\\|\\s*(ba)?sh|curl[^|;]{0,80}-o\\s*/tmp/[^;]{0,40}&&\\s*chmod\\s*\\+x)" }
+      },
+      "explain": "把远程脚本直接管道给 shell，或下载到 tmp 后赋权执行",
+      "false_positive": "部分安装脚本采用同样写法；核对下载域名与执行账号",
+      "tags": ["下载", "执行"],
+      "enabled": true
+    },
+    {
+      "id": "lx_ssh_key_backdoor",
+      "name": "写入 SSH 公钥",
+      "severity": "high",
+      "kind": "row",
+      "scope": ["auth", "syslog", "shell", "audit"],
+      "match": {
+        "raw": { "iregex": "(authorized_keys|>>\\s*[^\\s]*\\.ssh/|ssh-rsa\\s+AAAA|ssh-ed25519\\s+AAAA)" }
+      },
+      "explain": "向 authorized_keys 追加公钥，攻击者最常用的免密后门",
+      "false_positive": "运维批量下发公钥会命中；核对公钥指纹与来源账号",
+      "tags": ["持久化"],
+      "enabled": true
+    },
+    {
+      "id": "lx_mining",
+      "name": "挖矿程序特征",
+      "severity": "high",
+      "kind": "row",
+      "scope": ["auth", "syslog", "shell", "audit"],
+      "match": {
+        "raw": { "iregex": "(xmrig|minerd|kdevtmpfsi|kinsing|stratum\\+tcp|cryptonight|monero|nanopool|supportxmr|nicehash)" }
+      },
+      "explain": "出现矿池协议或已知挖矿程序名，服务器被入侵牟利的常见结果",
+      "false_positive": "极少。矿池域名可能出现在告警邮件正文里，需看是否为命令行",
+      "tags": ["挖矿"],
+      "enabled": true
+    },
+    {
+      "id": "lx_kernel_module",
+      "name": "加载内核模块或预加载劫持",
+      "severity": "high",
+      "kind": "row",
+      "scope": ["auth", "syslog", "shell", "audit"],
+      "match": {
+        "raw": { "iregex": "(insmod\\s+[^\\s]+\\.ko|modprobe\\s+[^\\s]+\\.ko|/etc/ld\\.so\\.preload)" }
+      },
+      "explain": "加载内核模块或写入动态链接预加载，Rootkit 的典型落地方式",
+      "false_positive": "正常驱动安装会加载 .ko；核对模块路径与签名来源",
+      "tags": ["Rootkit", "提权"],
+      "enabled": true
+    },
+    {
+      "id": "lx_disable_security",
+      "name": "关闭安全防护",
+      "severity": "high",
+      "kind": "row",
+      "scope": ["auth", "syslog", "shell", "audit"],
+      "match": {
+        "raw": { "iregex": "(setenforce\\s+0|systemctl\\s+(stop|disable)\\s+(firewalld|apparmor|auditd)|iptables\\s+-F|ufw\\s+disable|semanage\\s+permissive)" }
+      },
+      "explain": "关闭 SELinux、防火墙或审计服务，攻击者落地前先拆防护",
+      "false_positive": "运维做兼容性调整时会临时关闭；核对执行者与时间窗口",
+      "tags": ["规避"],
+      "enabled": true
+    },
+    {
+      "id": "lx_history_clear",
+      "name": "清理命令历史",
+      "severity": "high",
+      "kind": "row",
+      "scope": ["auth", "syslog", "shell", "audit"],
+      "match": {
+        "raw": { "iregex": "(history\\s+-c|unset\\s+HISTFILE|HISTSIZE=0|>\\s*[~\\/][^\\s]*\\.bash_history|shred\\s+[^\\s]*\\.bash_history)" }
+      },
+      "explain": "清空或禁用命令历史，属于反取证动作",
+      "false_positive": "少数运维习惯性清理历史；单条不足以定性，结合登录来源",
+      "tags": ["反取证"],
+      "enabled": true
+    },
+    {
+      "id": "lx_sudo_root",
+      "name": "sudo 提权到 root",
+      "severity": "medium",
+      "kind": "row",
+      "scope": ["auth", "syslog"],
+      "match": {
+        "raw": { "iregex": "sudo:?\\s+\\S+\\s*:.*COMMAND=" }
+      },
+      "explain": "普通账号通过 sudo 执行命令，提权链上的关键一环",
+      "false_positive": "运维日常操作大量使用 sudo；关注提权后执行的命令是否为侦察或下载",
+      "tags": ["提权"],
+      "enabled": true
+    },
+    {
+      "id": "lx_su_root",
+      "name": "su 切换到 root",
+      "severity": "medium",
+      "kind": "row",
+      "scope": ["auth", "syslog"],
+      "match": {
+        "raw": { "iregex": "(su(-l)?:\\s+session opened for user root|su\\[\\d+\\]:\\s+.*root)" }
+      },
+      "explain": "通过 su 切换为 root，可能是正常运维也可能是提权后维持权限",
+      "false_positive": "运维习惯使用 su 时大量命中；看切换前后是否有异常命令",
+      "tags": ["提权"],
+      "enabled": true
+    },
+    {
+      "id": "lx_chattr",
+      "name": "修改文件不可变属性",
+      "severity": "medium",
+      "kind": "row",
+      "scope": ["auth", "syslog", "shell", "audit"],
+      "match": {
+        "raw": { "iregex": "chattr\\s+[+-][a-z]*i" }
+      },
+      "explain": "给文件加不可变属性，用于保护后门不被删除，或解锁被保护的日志",
+      "false_positive": "合规加固会给关键文件加 i 属性；看操作对象是否为 web 目录或日志",
+      "tags": ["持久化", "反取证"],
+      "enabled": true
+    },
+    {
+      "id": "lx_passwd_write",
+      "name": "直接改写账号文件",
+      "severity": "high",
+      "kind": "row",
+      "scope": ["auth", "syslog", "shell", "audit"],
+      "match": {
+        "raw": { "iregex": "(>>?\\s*/etc/(passwd|shadow|sudoers)|sed\\s+-i[^|]{0,40}/etc/(passwd|shadow|sudoers))" }
+      },
+      "explain": "绕过 useradd 直接改账号文件，常用来加 UID 0 的隐藏账号",
+      "false_positive": "极少。配置管理工具可能用模板覆盖 sudoers，需核对来源",
+      "tags": ["持久化", "提权"],
+      "enabled": true
+    },
+    {
+      "id": "lx_payload_tmp",
+      "name": "临时目录投放载荷",
+      "severity": "medium",
+      "kind": "row",
+      "scope": ["auth", "syslog", "shell", "audit"],
+      "match": {
+        "raw": { "iregex": "(wget|curl)[^|;]{0,60}\\s-[a-zA-Z]*O?\\s*[^\\s]*(/tmp/|/dev/shm/|/var/tmp/)" }
+      },
+      "explain": "把远程文件下载到临时目录，落地后通常紧跟赋权与执行",
+      "false_positive": "安装脚本与运维工具也会用 /tmp；看下载域名与后续命令",
+      "tags": ["落地"],
+      "enabled": true
+    },
+    {
+      "id": "lx_proc_masquerade",
+      "name": "进程名伪装",
+      "severity": "medium",
+      "kind": "row",
+      "scope": ["shell", "audit"],
+      "match": {
+        "raw": { "iregex": "\\[(kworker|kthreadd|migration|ksoftirqd)(/[0-9:]+)?\\]" }
+      },
+      "explain": "用方括号伪装成内核线程，正常的内核线程不会出现在命令历史里",
+      "false_positive": "ps 输出被复制进日志时会命中；确认是否来自命令行而非进程列表",
+      "tags": ["隐藏"],
+      "enabled": true
+    },
+    {
+      "id": "lx_audit_exec_tmp",
+      "name": "审计记录：临时目录执行",
+      "severity": "high",
+      "kind": "row",
+      "scope": "audit",
+      "match": {
+        "exe": { "iregex": "^/(tmp|dev/shm|var/tmp)/" }
+      },
+      "explain": "从临时目录执行程序，正常服务不会这样运行，多为落地后的载荷",
+      "false_positive": "少数安装脚本从 /tmp 运行；结合父进程与执行账号判断",
+      "tags": ["执行"],
+      "enabled": true
+    },
+    {
+      "id": "lx_audit_rule_flush",
+      "name": "审计规则被清空",
+      "severity": "high",
+      "kind": "row",
+      "scope": "audit",
+      "match": {
+        "raw": { "iregex": "(auditctl\\s+-D|auditctl\\s+-W|service\\s+auditd\\s+stop|systemctl\\s+stop\\s+auditd)" }
+      },
+      "explain": "删除审计规则或停掉 auditd，攻击者最想做的第一件事",
+      "false_positive": "极少数合规检查会临时停服务；核对执行账号",
+      "tags": ["反取证"],
+      "enabled": true
+    },
+    {
+      "id": "lx_redis_unauth",
+      "name": "Redis 未授权利用",
+      "severity": "high",
+      "kind": "row",
+      "scope": ["shell", "syslog", "audit"],
+      "match": {
+        "raw": { "iregex": "(redis-cli[^|]{0,40}(config\\s+set|slaveof|replicaof)|config\\s+set\\s+dir\\s|config\\s+set\\s+dbfilename)" }
+      },
+      "explain": "通过 Redis 写文件或主从复制执行命令，未授权访问的经典利用链",
+      "false_positive": "极少。DBA 正常配置不会用 CONFIG SET dir 指向 web 目录",
+      "tags": ["未授权", "RCE"],
+      "enabled": true
+    },
+    {
+      "id": "lx_db_client_root",
+      "name": "数据库 root 直连尝试",
+      "severity": "medium",
+      "kind": "row",
+      "scope": ["shell", "syslog"],
+      "match": {
+        "raw": { "iregex": "(mysql\\s+-u\\s*root|mysql\\s+--user=root|psql\\s+-U\\s*postgres|mongo\\s+--host)" }
+      },
+      "explain": "直接用最高权限账号连接数据库，可能是正常运维也可能是横向探测",
+      "false_positive": "DBA 日常操作会命中；看来源主机是否为数据库管理机",
+      "tags": ["数据库"],
+      "enabled": true
+    },
+    {
+      "id": "lx_container_privileged",
+      "name": "特权容器或有宿主挂载",
+      "severity": "high",
+      "kind": "row",
+      "scope": ["shell", "syslog"],
+      "match": {
+        "raw": { "iregex": "(docker\\s+run[^|]{0,120}(--privileged|-v\\s*/:/)|--pid=host|--net=host[^|]{0,40}--privileged)" }
+      },
+      "explain": "以特权模式启动容器或把宿主根目录挂进去，等于直接拿到宿主机权限",
+      "false_positive": "部分监控与存储组件确实需要特权模式；核对镜像与启动人",
+      "tags": ["容器逃逸"],
+      "enabled": true
+    }
+  ]
+}

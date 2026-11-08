@@ -1,0 +1,124 @@
+{
+  "version": "1.1",
+  "category": "firewall",
+  "category_name": "防火墙",
+  "rules": [
+    {
+      "id": "fw_management_allowed",
+      "name": "管理端口被放行",
+      "severity": "high",
+      "kind": "row",
+      "scope": "firewall",
+      "match": {
+        "action": { "eq": "accept" },
+        "dstport": { "in": [22, 23, 135, 139, 445, 3389, 5900] }
+      },
+      "explain": "防火墙放行了 SSH、Telnet、SMB、RDP 或 VNC 等管理端口",
+      "false_positive": "受控运维区到管理区的正常访问也会命中，应核对来源网段和命中策略",
+      "tags": ["边界", "管理通道"],
+      "enabled": true
+    },
+    {
+      "id": "fw_mgmt_from_public",
+      "name": "公网来源直连管理端口",
+      "severity": "high",
+      "kind": "row",
+      "scope": "firewall",
+      "match": {
+        "action": { "eq": "accept" },
+        "dstport": { "in": [22, 3389, 445, 1433, 3306, 6379, 27017, 5900] },
+        "srcip": { "not_regex": "^(10\\.|192\\.168\\.|172\\.(1[6-9]|2[0-9]|3[01])\\.|127\\.|::1)" }
+      },
+      "explain": "公网地址成功连上数据库、远程桌面或 SSH 端口，这类端口不应直接暴露在互联网",
+      "false_positive": "专线对端、VPN 出口可能显示为公网地址；核对出口 IP 清单",
+      "tags": ["边界", "暴露"],
+      "enabled": true
+    },
+    {
+      "id": "fw_deny_admin_scan",
+      "name": "管理端口被拒绝访问",
+      "severity": "medium",
+      "kind": "row",
+      "scope": "firewall",
+      "match": {
+        "action": { "eq": "deny" },
+        "dstport": { "in": [22, 23, 135, 139, 445, 1433, 3306, 3389, 6379, 27017] }
+      },
+      "explain": "有来源尝试连接管理或数据库端口被拒绝，多为扫描或横向移动试探",
+      "false_positive": "内网扫描器、资产盘点也会产生；看单一来源的尝试次数与端口覆盖范围",
+      "tags": ["扫描", "边界"],
+      "enabled": true
+    },
+    {
+      "id": "fw_outbound_c2_port",
+      "name": "外联到可疑端口",
+      "severity": "high",
+      "kind": "row",
+      "scope": "firewall",
+      "match": {
+        "action": { "eq": "accept" },
+        "dstport": { "in": [4444, 4445, 5555, 6666, 7777, 1337, 31337, 9001, 8888] }
+      },
+      "explain": "放行到远控与隧道工具常用端口，正常业务很少使用这些端口",
+      "false_positive": "部分自建服务与测试环境会占用这些端口；核对目的 IP 与业务清单",
+      "tags": ["C2", "外联"],
+      "enabled": true
+    },
+    {
+      "id": "fw_policy_any_any",
+      "name": "全通策略",
+      "severity": "high",
+      "kind": "row",
+      "scope": "firewall",
+      "match": {
+        "raw": { "iregex": "(any\\s*[-/]\\s*any|permit\\s+ip\\s+any\\s+any|allow\\s+any\\s+any|0\\.0\\.0\\.0/0\\s+any)" }
+      },
+      "explain": "出现任意源到任意目的的全通策略，边界防护形同虚设",
+      "false_positive": "测试环境与临时排障会下发全通策略；生产边界出现需立即处置",
+      "tags": ["配置审计", "边界"],
+      "enabled": true
+    },
+    {
+      "id": "fw_config_cleared",
+      "name": "配置被清空或恢复出厂",
+      "severity": "high",
+      "kind": "row",
+      "scope": "firewall",
+      "match": {
+        "raw": { "iregex": "(clear\\s+config|reset\\s+config|restore\\s+factory|delete\\s+all\\s+(policy|rule)|erase\\s+startup-config)" }
+      },
+      "explain": "清空配置或恢复出厂设置，设备将失去防护能力，属于破坏性操作",
+      "false_positive": "设备更换与初始化会正常执行；核对操作者与变更窗口",
+      "tags": ["破坏", "配置审计"],
+      "enabled": true
+    },
+    {
+      "id": "fw_policy_changed",
+      "name": "防火墙策略或配置变更",
+      "severity": "high",
+      "kind": "row",
+      "scope": "firewall",
+      "match": {
+        "raw": { "iregex": "(policy|rule|config|策略|配置).*(add|delete|modify|change|新增|删除|修改)|(add|delete|modify|change|新增|删除|修改).*(policy|rule|config|策略|配置)" }
+      },
+      "explain": "出现策略新增、删除、修改或配置变更",
+      "false_positive": "正常运维变更会命中，应核对管理员、工单和发布时间",
+      "tags": ["配置审计"],
+      "enabled": true
+    },
+    {
+      "id": "fw_admin_auth_failed",
+      "name": "防火墙管理员认证失败",
+      "severity": "medium",
+      "kind": "row",
+      "scope": "firewall",
+      "match": {
+        "raw": { "iregex": "(login|authentication|认证|登录).*(failed|failure|denied|失败|拒绝)|(failed|failure|denied|失败|拒绝).*(login|authentication|认证|登录)" }
+      },
+      "explain": "设备管理员登录或认证失败",
+      "false_positive": "管理员输错密码、过期账号或自动脚本配置错误也会命中",
+      "tags": ["管理员", "认证"],
+      "enabled": true
+    }
+  ]
+}

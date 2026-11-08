@@ -1,0 +1,15 @@
+{
+  "id": "web-split",
+  "name": "前后端分离",
+  "subtitle": "网关 + Spring Boot + 中间件",
+  "scene": "nginx 做网关，后端 Spring Boot 多实例，MySQL / Redis 独立部署",
+  "components": ["nginx", "centos", "spring", "mysql", "redis"],
+  "suggested": ["waf", "haproxy", "tomcat", "elasticsearch", "kafka"],
+  "checks": [
+    "网关日志与后端日志的时间是否能对上（时钟偏差会让整条时间线错位）",
+    "同一次请求在 WAF 被拦截、后端却留下 200 记录（WAF 被绕过）",
+    "Actuator 端点是否对外暴露（/actuator/env、/actuator/heapdump 是凭据泄露源）",
+    "单个 API 的参数长度是否异常（注入 payload 通常很长）",
+    "是否有 JVM 崩溃日志 hs_err_pid*.log（注入型内存马的旁证）"
+  ]
+}

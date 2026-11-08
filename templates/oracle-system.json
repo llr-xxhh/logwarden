@@ -1,0 +1,15 @@
+{
+  "id": "oracle-system",
+  "name": "Oracle 业务系统",
+  "subtitle": "WebLogic + Oracle",
+  "scene": "Java EE 应用服务器加 Oracle 数据库，多见于政务、交管、行业后台",
+  "components": ["nginx", "centos", "weblogic", "oracle"],
+  "suggested": ["waf", "haproxy", "tomcat"],
+  "checks": [
+    "listener.log 中是否有大量 TNS 连接失败（数据库爆破）",
+    "alert log 中是否出现 ORA-01017（认证失败）或 ORA-12170（连接超时）",
+    "WebLogic 的 T3 / IIOP 端口是否对外暴露（反序列化攻击入口）",
+    "Oracle 审计是否开启，能否查到攻击者登录后的操作",
+    "listener.log 是否已轮转——默认不轮转，可能已达几十 GB"
+  ]
+}

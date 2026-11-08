@@ -1,0 +1,15 @@
+{
+  "id": "web-single",
+  "name": "Linux 单体 Web",
+  "subtitle": "LNMP / LAMP（PHP）",
+  "scene": "nginx + PHP + MySQL 部署在一台或两三台机器，最常见的中小站点",
+  "components": ["nginx", "ubuntu", "mysql", "php"],
+  "suggested": ["waf", "tomcat", "spring"],
+  "checks": [
+    "静态资源目录下是否出现新的 .php 文件",
+    "upload / images / avatar 等可写目录下是否出现可执行脚本",
+    "同一 IP 短时间内大量 404/403（目录扫描特征）",
+    "单个路径的响应体大小是否骤降至几百字节（webshell 执行命令的返回）",
+    "php-fpm 日志里是否有 Unable to open primary script 之类异常"
+  ]
+}

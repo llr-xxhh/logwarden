@@ -1,0 +1,119 @@
+{
+  "version": "1.0",
+  "category": "windows_powershell",
+  "category_name": "PowerShell 脚本块",
+  "rules": [
+    {
+      "id": "ps_encoded",
+      "name": "脚本内解码执行",
+      "severity": "high",
+      "kind": "row",
+      "scope": "ps",
+      "match": {
+        "text": { "iregex": "(frombase64string|\\[convert\\]::frombase64|[a-z0-9+/]{60,}={0,2}\\s*\\|\\s*iex)" }
+      },
+      "explain": "脚本块里出现 Base64 解码后执行，混淆载荷的典型写法",
+      "false_positive": "少数安装脚本会解码配置；看解码结果是否直接进入 IEX 或 Invoke-Expression",
+      "tags": ["混淆", "执行"],
+      "enabled": true
+    },
+    {
+      "id": "ps_download_cradle",
+      "name": "脚本下载载荷",
+      "severity": "high",
+      "kind": "row",
+      "scope": "ps",
+      "match": {
+        "text": { "iregex": "(downloadstring|downloadfile|invoke-webrequest|invoke-restmethod|net\\.webclient|start-bitstransfer|system\\.net\\.http)" }
+      },
+      "explain": "从远程拉取内容，无文件攻击的第一段载荷",
+      "false_positive": "合法的自动化脚本会调用接口；核对目标域名与是否为首次出现",
+      "tags": ["下载", "无文件"],
+      "enabled": true
+    },
+    {
+      "id": "ps_hidden_window",
+      "name": "隐藏窗口执行",
+      "severity": "medium",
+      "kind": "row",
+      "scope": "ps",
+      "match": {
+        "text": { "iregex": "(-windowstyle\\s+hidden|-w\\s+hidden|-nop\\b|-noprofile|executionpolicy\\s+bypass|-ep\\s+bypass)" }
+      },
+      "explain": "关闭配置加载并隐藏窗口，目的是不让用户看到执行过程",
+      "false_positive": "部署工具与登录脚本常用同样参数；看是否与下载、编码组合出现",
+      "tags": ["规避"],
+      "enabled": true
+    },
+    {
+      "id": "ps_amsi_bypass",
+      "name": "AMSI 绕过特征",
+      "severity": "high",
+      "kind": "row",
+      "scope": "ps",
+      "match": {
+        "text": { "iregex": "(amsiutils|amsiinitfailed|amsi\\.dll|setvalue\\s*\\([^)]*amsi)" }
+      },
+      "explain": "篡改反恶意软件扫描接口，让后续脚本不被检测",
+      "false_positive": "极少。安全研究与红队工具会命中",
+      "tags": ["规避"],
+      "enabled": true
+    },
+    {
+      "id": "ps_credential_access",
+      "name": "凭据读取或导出",
+      "severity": "high",
+      "kind": "row",
+      "scope": "ps",
+      "match": {
+        "text": { "iregex": "(convertto-securestring|get-credential|credentialmanager|vaultcmd|\\bkeepass|\\blazagne|password\\s*=\\s*['\\\"])" }
+      },
+      "explain": "脚本中出现凭据读取或密码硬编码，可能是凭据收集脚本",
+      "false_positive": "合法的自动化部署会硬编码服务账号；核对脚本来源与存放位置",
+      "tags": ["凭据窃取"],
+      "enabled": true
+    },
+    {
+      "id": "ps_reverse_shell",
+      "name": "PowerShell 反弹连接",
+      "severity": "high",
+      "kind": "row",
+      "scope": "ps",
+      "match": {
+        "text": { "iregex": "(net\\.sockets\\.tcpclient|system\\.net\\.sockets|new-object\\s+system\\.net\\.sockets|streamreader.*streamwriter|invoke-shell)" }
+      },
+      "explain": "建立 TCP 连接并读写数据流，反弹 shell 的标准实现",
+      "false_positive": "少量运维脚本做端口探测会用到 TcpClient；看是否有交互式读写循环",
+      "tags": ["后门", "C2"],
+      "enabled": true
+    },
+    {
+      "id": "ps_token_manipulation",
+      "name": "令牌提权调用",
+      "severity": "high",
+      "kind": "row",
+      "scope": "ps",
+      "match": {
+        "text": { "iregex": "(sedebugprivilege|adjusttokenprivileges|openprocesstoken|duplicatetoken|impersonateloggedonuser)" }
+      },
+      "explain": "调用 Windows 令牌接口，用于窃取高权限令牌或提权",
+      "false_positive": "极少。部分系统管理脚本会查询特权，但不会同时出现 OpenProcessToken",
+      "tags": ["提权"],
+      "enabled": true
+    },
+    {
+      "id": "ps_iex_invoke",
+      "name": "动态执行 Invoke-Expression",
+      "severity": "medium",
+      "kind": "row",
+      "scope": "ps",
+      "match": {
+        "text": { "iregex": "(\\biex\\b|invoke-expression)\\s*[\\(\\$]" }
+      },
+      "explain": "把拼接出来的字符串当代码执行，常见于免杀与下载链",
+      "false_positive": "部分第三方模块内部使用 IEX；看被执行的内容是否来自网络或解码",
+      "tags": ["执行"],
+      "enabled": true
+    }
+  ]
+}

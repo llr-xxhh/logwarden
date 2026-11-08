@@ -1,0 +1,262 @@
+{
+  "version": "1.0",
+  "category": "windows_auth",
+  "category_name": "Windows 登录与账号",
+  "rules": [
+    {
+      "id": "win_logon_failed",
+      "name": "登录失败 4625",
+      "severity": "medium",
+      "kind": "row",
+      "scope": "win",
+      "match": { "eventId": { "eq": 4625 } },
+      "explain": "账号密码错误。单条只是噪音，成批出现才是爆破或撞库",
+      "false_positive": "用户输错密码、服务账号未更新过期密码都会大量产生；看同一来源 IP 的失败次数",
+      "tags": ["认证"],
+      "enabled": true
+    },
+    {
+      "id": "win_logon_external",
+      "name": "外网来源登录成功 4624",
+      "severity": "high",
+      "kind": "row",
+      "scope": "win",
+      "match": {
+        "eventId": { "eq": 4624 },
+        "srcip": { "not_regex": "^(10\\.|192\\.168\\.|172\\.(1[6-9]|2[0-9]|3[01])\\.|127\\.|169\\.254\\.|::1|-)$" }
+      },
+      "explain": "非内网地址成功登录本机，若本机不该直接暴露公网，这就是入口",
+      "false_positive": "VPN 出口、云桌面网关、NAT 后的办公网段可能显示为公网地址；核对出口 IP 清单",
+      "tags": ["认证", "入口"],
+      "enabled": true
+    },
+    {
+      "id": "win_explicit_cred",
+      "name": "显式凭据登录 4648",
+      "severity": "high",
+      "kind": "row",
+      "scope": "win",
+      "match": { "eventId": { "eq": 4648 } },
+      "explain": "用另一套凭据发起登录，横向移动（PsExec、RunAs、WMI）的典型痕迹",
+      "false_positive": "运维用 runas 启动管理工具会命中；核对源主机与目标主机是否在授权链路内",
+      "tags": ["横向移动"],
+      "enabled": true
+    },
+    {
+      "id": "win_priv_logon",
+      "name": "特权登录 4672",
+      "severity": "low",
+      "kind": "row",
+      "scope": "win",
+      "match": { "eventId": { "eq": 4672 } },
+      "explain": "登录会话被授予管理员特权，常与 4624 成对出现",
+      "false_positive": "系统账号与管理员日常操作都会命中，量大；只作为时间线锚点，不单独定性",
+      "tags": ["认证", "权限"],
+      "enabled": false
+    },
+    {
+      "id": "win_susp_process",
+      "name": "可疑命令行创建进程 4688",
+      "severity": "high",
+      "kind": "row",
+      "scope": "win",
+      "match": {
+        "eventId": { "eq": 4688 },
+        "any": [
+          { "cmdline": { "iregex": "(powershell|pwsh|mshta|rundll32|regsvr32|certutil|bitsadmin|wmic|msiexec|installutil)\\b.*(-enc|-e\\s|/c\\s|http|javascript:|scrobj|urlcache)" } },
+          { "msg": { "iregex": "(powershell|pwsh|mshta|rundll32|regsvr32|certutil|bitsadmin|wmic|msiexec|installutil)\\b.*(-enc|-e\\s|/c\\s|http|javascript:|scrobj|urlcache)" } }
+        ]
+      },
+      "explain": "进程创建事件里出现 LOLBin（系统自带可被滥用程序）执行远程或编码命令",
+      "false_positive": "运维脚本、软件部署会调用这些程序；看父进程是否为 Office、Web 服务或浏览器",
+      "tags": ["执行", "LOLBin"],
+      "enabled": true
+    },
+    {
+      "id": "win_new_account",
+      "name": "创建本地账号 4720",
+      "severity": "high",
+      "kind": "row",
+      "scope": "win",
+      "match": { "eventId": { "eq": 4720 } },
+      "explain": "新建账号，攻击者留后门账号的第一步",
+      "false_positive": "正常入职开通账号会命中；核对是否有工单，以及账号名是否伪装成系统账号",
+      "tags": ["持久化"],
+      "enabled": true
+    },
+    {
+      "id": "win_add_admin",
+      "name": "账号加入特权组 4728/4732/4756",
+      "severity": "high",
+      "kind": "row",
+      "scope": "win",
+      "match": { "eventId": { "in": [4728, 4732, 4756] } },
+      "explain": "账号被加入全局组、本地组或通用组，加入管理员组即为提权成功",
+      "false_positive": "正常的权限申请与批量授权会命中；核对目标组与操作者身份",
+      "tags": ["提权", "持久化"],
+      "enabled": true
+    },
+    {
+      "id": "win_account_enabled",
+      "name": "账号被启用 4722",
+      "severity": "medium",
+      "kind": "row",
+      "scope": "win",
+      "match": { "eventId": { "eq": 4722 } },
+      "explain": "长期禁用的账号突然被启用，常是攻击者重新激活旧账号",
+      "false_positive": "员工复职、临时启用会命中；核对账号最近登录时间",
+      "tags": ["账号"],
+      "enabled": true
+    },
+    {
+      "id": "win_password_reset",
+      "name": "密码被重置 4724",
+      "severity": "medium",
+      "kind": "row",
+      "scope": "win",
+      "match": { "eventId": { "eq": 4724 } },
+      "explain": "他人重置账号密码，攻击者拿到权限后常借此接管账号",
+      "false_positive": "服务台正常重置会命中；关注被重置的是否为管理员账号",
+      "tags": ["账号"],
+      "enabled": true
+    },
+    {
+      "id": "win_account_deleted",
+      "name": "账号被删除 4726",
+      "severity": "medium",
+      "kind": "row",
+      "scope": "win",
+      "match": { "eventId": { "eq": 4726 } },
+      "explain": "删除账号，也可能是攻击者清理自建账号留下的痕迹",
+      "false_positive": "离职清理正常发生；关注删除操作者与前后事件",
+      "tags": ["账号", "反取证"],
+      "enabled": true
+    },
+    {
+      "id": "win_log_cleared",
+      "name": "安全日志被清除 1102",
+      "severity": "high",
+      "kind": "row",
+      "scope": ["win", "ps"],
+      "match": { "eventId": { "eq": 1102 } },
+      "explain": "安全审计日志被清空，几乎只出现在攻击收尾阶段，本身即为高危信号",
+      "false_positive": "极少。合规要求下的日志归档不应使用清空操作",
+      "tags": ["反取证"],
+      "enabled": true
+    },
+    {
+      "id": "win_audit_policy_change",
+      "name": "审计策略被修改 4719",
+      "severity": "high",
+      "kind": "row",
+      "scope": "win",
+      "match": { "eventId": { "eq": 4719 } },
+      "explain": "审计策略变更，攻击者关掉关键审计项后，后续行为就不再留痕",
+      "false_positive": "域策略统一下发会批量产生；核对变更来源是否为组策略服务器",
+      "tags": ["反取证"],
+      "enabled": true
+    },
+    {
+      "id": "win_service_install",
+      "name": "安装新服务 7045",
+      "severity": "medium",
+      "kind": "row",
+      "scope": ["win", "ps"],
+      "match": { "eventId": { "eq": 7045 } },
+      "explain": "服务被安装，恶意软件最常用的持久化方式，注意服务二进制路径是否在 Temp 或 Users 目录",
+      "false_positive": "软件安装、驱动更新会命中；核对服务名与可执行路径签名",
+      "tags": ["持久化"],
+      "enabled": true
+    },
+    {
+      "id": "win_log_service_stop",
+      "name": "事件日志服务停止 6006",
+      "severity": "medium",
+      "kind": "row",
+      "scope": ["win", "ps"],
+      "match": { "eventId": { "eq": 6006 } },
+      "explain": "日志服务被停止，攻击者借此制造日志盲区；正常关机也会记录该事件",
+      "false_positive": "计划内重启、关机都会产生 6006；需与 6008 异常关机、1074 主动关机区分",
+      "tags": ["反取证"],
+      "enabled": true
+    },
+    {
+      "id": "win_rdp_logon",
+      "name": "远程桌面登录 4624 类型 10",
+      "severity": "medium",
+      "kind": "row",
+      "scope": "win",
+      "match": {
+        "eventId": { "eq": 4624 },
+        "logonType": { "eq": "10" }
+      },
+      "explain": "一次 RDP 交互式登录，是横向移动与远程控制的主要通道",
+      "false_positive": "运维日常远程会命中；关注来源 IP 是否为非常用地址、时间是否在非工作时段",
+      "tags": ["远程登录"],
+      "enabled": true
+    },
+    {
+      "id": "win_account_locked",
+      "name": "账号被锁定 4740",
+      "severity": "medium",
+      "kind": "row",
+      "scope": "win",
+      "match": { "eventId": { "eq": 4740 } },
+      "explain": "账号因连续失败被锁定，密码喷洒的副作用",
+      "false_positive": "用户改密码后旧凭据仍在重试会造成锁定；核对锁定来源主机",
+      "tags": ["认证", "爆破"],
+      "enabled": true
+    },
+    {
+      "id": "win_kerberoast",
+      "name": "Kerberos 弱加密票据 4769",
+      "severity": "high",
+      "kind": "row",
+      "scope": "win",
+      "match": {
+        "eventId": { "eq": 4769 },
+        "msg": { "iregex": "(0x17|rc4|etype\\s*23)" }
+      },
+      "explain": "服务票据使用 RC4 加密，Kerberoasting 离线破解的典型特征",
+      "false_positive": "老应用不支持 AES 时会正常使用 RC4；需结合请求量与账号权限判断",
+      "tags": ["凭据窃取"],
+      "enabled": true
+    },
+    {
+      "id": "win_time_change",
+      "name": "系统时间被修改 4616",
+      "severity": "medium",
+      "kind": "row",
+      "scope": "win",
+      "match": { "eventId": { "eq": 4616 } },
+      "explain": "系统时间变更，攻击者借此让日志时间线与真实时间错位",
+      "false_positive": "时间同步服务、手工校时也会产生；核对变更账号与前后时间偏差",
+      "tags": ["反取证"],
+      "enabled": true
+    },
+    {
+      "id": "win_scheduled_task",
+      "name": "创建计划任务 4698",
+      "severity": "high",
+      "kind": "row",
+      "scope": "win",
+      "match": { "eventId": { "eq": 4698 } },
+      "explain": "新建计划任务，持久化常用手法，注意任务动作指向的程序路径",
+      "false_positive": "软件更新、运维巡检会创建任务；核对任务名与执行路径",
+      "tags": ["持久化"],
+      "enabled": true
+    },
+    {
+      "id": "win_share_access",
+      "name": "访问网络共享 5140/5145",
+      "severity": "low",
+      "kind": "row",
+      "scope": "win",
+      "match": { "eventId": { "in": [5140, 5145] } },
+      "explain": "访问 SMB 共享，横向移动与数据收集的常见动作",
+      "false_positive": "文件服务器日常访问量极大；只看管理共享（C$、ADMIN$）与非常用来源",
+      "tags": ["横向移动"],
+      "enabled": false
+    }
+  ]
+}

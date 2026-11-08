@@ -1,0 +1,15 @@
+{
+  "id": "ubuntu-host",
+  "name": "Ubuntu 主机体检",
+  "subtitle": "auth.log + syslog + CRON + apt/dpkg",
+  "scene": "排查 Ubuntu / Debian 主机是否被入侵",
+  "components": ["ubuntu", "ubuntu_auditd"],
+  "suggested": ["firewall"],
+  "checks": [
+    "auth.log 中是否有集中失败后的成功登录",
+    "是否存在 UID=0 的非 root 账号",
+    "syslog 中 CRON 是否执行下载或反弹命令",
+    "apt/dpkg 是否安装 gcc、netcat、nmap 等工具",
+    "auditd 是否覆盖敏感文件与 execve"
+  ]
+}

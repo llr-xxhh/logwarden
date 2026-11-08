@@ -1,0 +1,297 @@
+{
+  "version": "1.0",
+  "category": "windows_sysmon",
+  "category_name": "Sysmon 进程与网络",
+  "rules": [
+    {
+      "id": "sm_web_child",
+      "name": "Web 进程拉起命令行",
+      "severity": "high",
+      "kind": "row",
+      "scope": "sysmon",
+      "match": {
+        "eventId": { "eq": 1 },
+        "parent": { "iregex": "(w3wp\\.exe|java\\.exe|tomcat|httpd|nginx|php-cgi|php-fpm)" },
+        "image": { "iregex": "(cmd\\.exe|powershell\\.exe|pwsh\\.exe|mshta\\.exe|certutil\\.exe|whoami\\.exe|net\\.exe|nltest\\.exe)" }
+      },
+      "explain": "Web 服务进程直接 spawn 命令行或侦察工具，几乎只有 WebShell 会这样",
+      "false_positive": "少数老系统用 CGI 调用外部程序处理请求；核对命令行是否与业务功能相关",
+      "tags": ["Webshell", "执行"],
+      "enabled": true
+    },
+    {
+      "id": "sm_office_child",
+      "name": "Office 进程拉起子进程",
+      "severity": "high",
+      "kind": "row",
+      "scope": "sysmon",
+      "match": {
+        "eventId": { "eq": 1 },
+        "parent": { "iregex": "(winword\\.exe|excel\\.exe|powerpnt\\.exe|outlook\\.exe|wps\\.exe|et\\.exe)" },
+        "image": { "iregex": "(cmd\\.exe|powershell\\.exe|wscript\\.exe|cscript\\.exe|mshta\\.exe|rundll32\\.exe|regsvr32\\.exe)" }
+      },
+      "explain": "Office 文档触发命令行，宏病毒或钓鱼附件的典型执行链",
+      "false_positive": "带宏的合法业务模板会调用外部程序；看是否有下载行为与临时目录落地",
+      "tags": ["钓鱼", "执行"],
+      "enabled": true
+    },
+    {
+      "id": "sm_shell_image",
+      "name": "脚本解释器被启动",
+      "severity": "medium",
+      "kind": "row",
+      "scope": "sysmon",
+      "match": {
+        "eventId": { "eq": 1 },
+        "image": { "iregex": "(powershell\\.exe|pwsh\\.exe|wscript\\.exe|cscript\\.exe|mshta\\.exe)$" }
+      },
+      "explain": "脚本宿主进程启动，是大多数无文件攻击的入口",
+      "false_positive": "运维脚本、登录脚本会正常触发；看父进程与命令行参数",
+      "tags": ["执行"],
+      "enabled": false
+    },
+    {
+      "id": "sm_encoded_cmd",
+      "name": "编码命令执行",
+      "severity": "high",
+      "kind": "row",
+      "scope": "sysmon",
+      "match": {
+        "eventId": { "eq": 1 },
+        "cmdline": { "iregex": "(-enc|-encodedcommand|-e\\s+[A-Za-z0-9+/=]{20,}|frombase64string)" }
+      },
+      "explain": "命令行带有 Base64 编码参数，攻击者用它绕过硬编码字符串检测",
+      "false_positive": "少数管理软件用编码参数传脚本；首次出现与非常用父进程需重点看",
+      "tags": ["执行", "混淆"],
+      "enabled": true
+    },
+    {
+      "id": "sm_download_exec",
+      "name": "命令行下载载荷",
+      "severity": "high",
+      "kind": "row",
+      "scope": "sysmon",
+      "match": {
+        "eventId": { "eq": 1 },
+        "cmdline": { "iregex": "(certutil[^|]{0,40}-urlcache|bitsadmin[^|]{0,40}/transfer|invoke-webrequest|invoke-restmethod|downloadstring|downloadfile|start-bitstransfer|wget\\s|curl\\s+-[a-z]*o\\s)" }
+      },
+      "explain": "用系统自带程序下载远程文件，是落地载荷最常见的一步",
+      "false_positive": "软件部署、更新脚本会使用同类命令；核对目标域名与落地路径",
+      "tags": ["下载", "落地"],
+      "enabled": true
+    },
+    {
+      "id": "sm_drop_executable",
+      "name": "临时目录落地可执行文件",
+      "severity": "high",
+      "kind": "row",
+      "scope": "sysmon",
+      "match": {
+        "eventId": { "eq": 11 },
+        "target": { "iregex": "(\\\\temp\\\\|\\\\tmp\\\\|\\\\users\\\\public\\\\|\\\\programdata\\\\)[^\\\\]*\\.(exe|dll|ps1|bat|vbs|js|aspx|jsp|php)$" }
+      },
+      "explain": "在临时目录或公共目录写入可执行文件，正常软件极少这样做",
+      "false_positive": "安装包解压、部分更新程序会写入 Temp；结合随后是否有同路径执行",
+      "tags": ["落地"],
+      "enabled": true
+    },
+    {
+      "id": "sm_run_key",
+      "name": "自启动项写入",
+      "severity": "high",
+      "kind": "row",
+      "scope": "sysmon",
+      "match": {
+        "eventId": { "in": [12, 13] },
+        "target": { "iregex": "currentversion\\\\(run|runonce|policies\\\\explorer\\\\run)" }
+      },
+      "explain": "写注册表启动项，重启后自动执行，是持久化的经典位置",
+      "false_positive": "正规软件安装与更新会写 Run 键；看写入程序与目标路径是否为临时目录",
+      "tags": ["持久化"],
+      "enabled": true
+    },
+    {
+      "id": "sm_service_reg",
+      "name": "服务注册表被修改",
+      "severity": "high",
+      "kind": "row",
+      "scope": "sysmon",
+      "match": {
+        "eventId": { "in": [12, 13] },
+        "target": { "iregex": "\\\\system\\\\currentcontrolset\\\\services\\\\[^\\\\]+\\\\(imagepath|servicedll|failurecommand)$" }
+      },
+      "explain": "改写服务可执行路径，攻击者借此把后门注册为服务或劫持已有服务",
+      "false_positive": "驱动与软件升级会修改 ImagePath；核对路径是否指向用户目录",
+      "tags": ["持久化", "提权"],
+      "enabled": true
+    },
+    {
+      "id": "sm_outbound_script",
+      "name": "脚本进程外联",
+      "severity": "high",
+      "kind": "row",
+      "scope": "sysmon",
+      "match": {
+        "eventId": { "eq": 3 },
+        "image": { "iregex": "(powershell\\.exe|pwsh\\.exe|mshta\\.exe|rundll32\\.exe|regsvr32\\.exe|certutil\\.exe|wscript\\.exe)$" }
+      },
+      "explain": "脚本解释器直接发起网络连接，多为下载载荷或 C2 回连",
+      "false_positive": "运维脚本调用 API 会命中；核对目标地址是否为已知业务域名",
+      "tags": ["外联", "C2"],
+      "enabled": true
+    },
+    {
+      "id": "sm_dns_susp_tld",
+      "name": "解析可疑顶级域名",
+      "severity": "medium",
+      "kind": "row",
+      "scope": "sysmon",
+      "match": {
+        "eventId": { "eq": 22 },
+        "target": { "iregex": "\\.(xyz|top|tk|pw|cc|icu|cyou|monster|buzz|click|rest)$" }
+      },
+      "explain": "廉价或免费顶级域名常被用于 C2 与钓鱼基础设施",
+      "false_positive": "部分广告、CDN、个人站点使用这些后缀；按进程与解析频次判断",
+      "tags": ["C2", "DNS"],
+      "enabled": true
+    },
+    {
+      "id": "sm_lsass_access",
+      "name": "访问 lsass 进程",
+      "severity": "high",
+      "kind": "row",
+      "scope": "sysmon",
+      "match": {
+        "eventId": { "eq": 10 },
+        "target": { "iregex": "lsass\\.exe" }
+      },
+      "explain": "有进程打开 lsass 句柄，凭据抓取（Mimikatz、ProcDump）的核心动作",
+      "false_positive": "杀毒软件、EDR、备份代理会读取 lsass；按 image 白名单排除安全软件",
+      "tags": ["凭据窃取"],
+      "enabled": true
+    },
+    {
+      "id": "sm_inject",
+      "name": "进程注入或篡改",
+      "severity": "high",
+      "kind": "row",
+      "scope": "sysmon",
+      "match": { "eventId": { "in": [8, 25] } },
+      "explain": "创建远程线程或进程映像被篡改，代码注入与进程镂空的直接证据",
+      "false_positive": "部分输入法、外挂防护与调试工具会正常注入；按来源进程判断",
+      "tags": ["注入", "规避"],
+      "enabled": true
+    },
+    {
+      "id": "sm_shadow_delete",
+      "name": "删除卷影副本",
+      "severity": "high",
+      "kind": "row",
+      "scope": "sysmon",
+      "match": {
+        "eventId": { "eq": 1 },
+        "cmdline": { "iregex": "(vssadmin[^|]{0,40}delete[^|]{0,20}shadows|wmic[^|]{0,40}shadowcopy[^|]{0,20}delete|wbadmin[^|]{0,40}delete[^|]{0,20}backup)" }
+      },
+      "explain": "删除卷影副本或备份，勒索软件加密前的固定动作，也用于阻断恢复",
+      "false_positive": "极少。存储清理脚本可能调用，需核对执行者",
+      "tags": ["破坏", "勒索"],
+      "enabled": true
+    },
+    {
+      "id": "sm_defender_disable",
+      "name": "关闭或绕过 Defender",
+      "severity": "high",
+      "kind": "row",
+      "scope": "sysmon",
+      "match": {
+        "eventId": { "eq": 1 },
+        "cmdline": { "iregex": "(add-mppreference[^|]{0,60}exclusionpath|set-mppreference[^|]{0,40}disable|mpcmdrun[^|]{0,30}removedefinitions|netsh[^|]{0,40}advfirewall[^|]{0,20}set[^|]{0,20}state[^|]{0,10}off)" }
+      },
+      "explain": "添加杀毒排除目录或直接关闭防护，攻击者落地前的常规准备",
+      "false_positive": "运维做性能优化时会加排除项；核对执行账号与时间",
+      "tags": ["规避"],
+      "enabled": true
+    },
+    {
+      "id": "sm_cred_dump",
+      "name": "凭据导出工具特征",
+      "severity": "high",
+      "kind": "row",
+      "scope": "sysmon",
+      "match": {
+        "eventId": { "eq": 1 },
+        "cmdline": { "iregex": "(comsvcs\\.dll[^|]{0,30}minidump|procdump[^|]{0,40}lsass|mimikatz|sekurlsa|kerberos::golden|lsadump)" }
+      },
+      "explain": "命令行出现内存转储或 Mimikatz 模块名，凭据窃取的直接证据",
+      "false_positive": "极少。安全评估工具在授权测试时会命中",
+      "tags": ["凭据窃取"],
+      "enabled": true
+    },
+    {
+      "id": "sm_lateral_tool",
+      "name": "横向移动工具特征",
+      "severity": "high",
+      "kind": "row",
+      "scope": "sysmon",
+      "match": {
+        "eventId": { "eq": 1 },
+        "cmdline": { "iregex": "(psexec|paexec|wmic[^|]{0,30}/node:|winrs|enter-pssession|invoke-command[^|]{0,30}-computername|sc(\\.exe)?\\s+\\\\\\\\)" }
+      },
+      "explain": "使用远程执行工具或向远端主机下发服务，横向移动的典型动作",
+      "false_positive": "运维批量管理会大量使用 WinRM 与 PsExec；核对目标主机范围",
+      "tags": ["横向移动"],
+      "enabled": true
+    },
+    {
+      "id": "sm_schtasks_create",
+      "name": "命令行创建计划任务",
+      "severity": "high",
+      "kind": "row",
+      "scope": "sysmon",
+      "match": {
+        "eventId": { "eq": 1 },
+        "cmdline": { "iregex": "schtasks(\\.exe)?[^|]{0,40}/create" }
+      },
+      "explain": "命令行创建计划任务，持久化常用手法，注意任务触发时间与执行路径",
+      "false_positive": "软件安装、运维脚本会创建；看是否指向临时目录或编码命令",
+      "tags": ["持久化"],
+      "enabled": true
+    },
+    {
+      "id": "sm_wmi_persist",
+      "name": "WMI 事件订阅持久化",
+      "severity": "high",
+      "kind": "row",
+      "scope": "sysmon",
+      "match": { "eventId": { "in": [19, 20, 21] } },
+      "explain": "注册 WMI 事件过滤器或消费者，无文件持久化的高级手法",
+      "false_positive": "部分管理软件（SCCM、监控代理）也会注册；按消费者脚本内容判断",
+      "tags": ["持久化", "无文件"],
+      "enabled": true
+    },
+    {
+      "id": "sm_file_time_change",
+      "name": "文件时间被篡改",
+      "severity": "medium",
+      "kind": "row",
+      "scope": "sysmon",
+      "match": { "eventId": { "eq": 2 } },
+      "explain": "修改文件创建时间，用于让后门看起来与系统文件同龄",
+      "false_positive": "安装程序与备份还原会改时间戳；结合文件路径与哈希判断",
+      "tags": ["反取证"],
+      "enabled": true
+    },
+    {
+      "id": "sm_ads_create",
+      "name": "创建备用数据流",
+      "severity": "medium",
+      "kind": "row",
+      "scope": "sysmon",
+      "match": { "eventId": { "eq": 15 } },
+      "explain": "在 NTFS 备用数据流中写入内容，常用于隐藏载荷或标记下载来源",
+      "false_positive": "浏览器下载会自动写入 Zone.Identifier 流；看流名与写入进程",
+      "tags": ["隐藏"],
+      "enabled": false
+    }
+  ]
+}

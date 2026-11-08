@@ -1,0 +1,63 @@
+{
+  "version": "0.2",
+  "category": "host",
+  "category_name": "主机侧行为",
+  "rules": [
+    {
+      "id": "auth_bruteforce",
+      "name": "认证失败爆发",
+      "severity": "high",
+      "kind": "aggregate",
+      "scope": "syslog",
+      "match": {
+        "agg": { "type": "auth_fail_burst", "window_sec": 300, "min_count": 20 }
+      },
+      "explain": "同一来源 5 分钟内认证失败超过 20 次",
+      "false_positive": "密码过期、配置错误的自动化脚本会造成失败堆积；看失败之后是否跟着成功登录",
+      "tags": ["爆破"],
+      "enabled": true
+    },
+    {
+      "id": "backdoor_account",
+      "name": "账号创建或提权",
+      "severity": "high",
+      "kind": "row",
+      "scope": ["auth", "syslog", "audit", "shell", "win", "ps"],
+      "match": {
+        "raw": { "iregex": "(useradd|adduser|net\\s+user\\s+\\S+\\s+/add|usermod\\s+-[a-zA-Z]*[oG]|chpasswd|echo\\s+\\S+:\\S+\\s*\\|\\s*chpasswd)" }
+      },
+      "explain": "创建账号、修改用户组或批量改密码，常被用于留后门",
+      "false_positive": "正常入职开通账号也会命中；核对是否有工单或变更记录",
+      "tags": ["持久化"],
+      "enabled": true
+    },
+    {
+      "id": "log_clear",
+      "name": "日志清除痕迹",
+      "severity": "high",
+      "kind": "row",
+      "scope": ["auth", "syslog", "audit", "shell", "win", "ps"],
+      "match": {
+        "raw": { "iregex": "(rm\\s+-[rf]+\\s+[^\\s]*(log|history)|>\\s*/var/log/|truncate\\s+-s\\s*0|wevtutil\\s+cl|Clear-EventLog|auditctl\\s+-D)" }
+      },
+      "explain": "出现清空日志或关闭审计的命令，本身即为高危信号",
+      "false_positive": "运维做日志轮转时可能命中 truncate；核对执行者身份与时间",
+      "tags": ["反取证"],
+      "enabled": true
+    },
+    {
+      "id": "persistence_cron",
+      "name": "计划任务写入",
+      "severity": "medium",
+      "kind": "row",
+      "scope": ["auth", "syslog", "audit", "shell", "win", "ps"],
+      "match": {
+        "raw": { "iregex": "(crontab\\s+-[ei]|>>\\s*/etc/cron|/etc/cron\\.(d|daily|hourly)|schtasks\\s+/create|systemctl\\s+enable\\s+[^\\s]+\\.service)" }
+      },
+      "explain": "写入计划任务或启用自建服务，是持久化的常见手法",
+      "false_positive": "正常的部署脚本、运维自动化会大量命中；需区分来源账号与路径",
+      "tags": ["持久化"],
+      "enabled": true
+    }
+  ]
+}

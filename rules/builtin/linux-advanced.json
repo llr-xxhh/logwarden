@@ -1,0 +1,135 @@
+{
+  "version": "1.0",
+  "category": "linux_advanced",
+  "category_name": "Linux 持久化与反取证",
+  "rules": [
+    {
+      "id": "lx_systemd_service_persist",
+      "name": "systemd 服务持久化",
+      "severity": "medium",
+      "kind": "row",
+      "scope": ["auth", "syslog", "shell", "audit"],
+      "match": {
+        "raw": { "iregex": "(systemctl\\s+enable\\s+|/etc/systemd/system/|/lib/systemd/system/|/usr/lib/systemd/system/)" }
+      },
+      "explain": "启用服务或写入 systemd 单元目录，可在启动或指定事件发生时重新执行载荷",
+      "false_positive": "安装与启用正常服务非常常见；重点核对单元文件中的 ExecStart 和工作目录",
+      "triage": "读取新增或修改的 unit 文件，核对 ExecStart、User、WantedBy 及文件时间",
+      "attack": ["T1543.002"],
+      "references": ["https://attack.mitre.org/techniques/T1543/002/"],
+      "enabled": true
+    },
+    {
+      "id": "lx_shell_rc_persist",
+      "name": "Shell 启动脚本持久化",
+      "severity": "high",
+      "kind": "row",
+      "scope": ["auth", "syslog", "shell", "audit"],
+      "match": {
+        "raw": { "iregex": "(>>?\\s*[^;|]*(\\.bashrc|\\.bash_profile|\\.profile)|/etc/profile\\.d/[^\\s]+)" }
+      },
+      "explain": "向用户 Shell 配置或全局 profile.d 写入内容，下次交互登录即可执行",
+      "false_positive": "运维配置环境变量也会修改这些文件；重点看是否追加 curl、bash、base64 或隐藏路径",
+      "triage": "对比启动脚本新增行与修改时间，检查其中是否包含下载、回连或隐藏目录执行",
+      "attack": ["T1546.004"],
+      "references": ["https://attack.mitre.org/techniques/T1546/004/"],
+      "enabled": true
+    },
+    {
+      "id": "lx_at_persist",
+      "name": "at 一次性任务或计划任务目录写入",
+      "severity": "medium",
+      "kind": "row",
+      "scope": ["auth", "syslog", "shell", "audit"],
+      "match": {
+        "raw": { "iregex": "(\\bat\\s+(now|-f\\s)|/var/spool/cron/|/etc/cron\\.(d|daily|hourly|weekly|monthly)/)" }
+      },
+      "explain": "创建 at 任务或写入计划任务目录，可在指定时间重新执行命令",
+      "false_positive": "运维定时发布与系统包会创建计划任务；需结合任务内容与创建账号",
+      "triage": "读取实际任务内容，核对执行账号、命令、创建时间和远程下载地址",
+      "attack": ["T1053.002", "T1053.003"],
+      "references": ["https://attack.mitre.org/techniques/T1053/002/", "https://attack.mitre.org/techniques/T1053/003/"],
+      "enabled": true
+    },
+    {
+      "id": "lx_ld_preload_exec",
+      "name": "临时目录动态库预加载",
+      "severity": "high",
+      "kind": "row",
+      "scope": ["auth", "syslog", "shell", "audit"],
+      "match": {
+        "raw": { "iregex": "(LD_PRELOAD|LD_LIBRARY_PATH)=[^;]*(\\/tmp\\/|\\/var\\/tmp\\/|\\/dev\\/shm\\/)" }
+      },
+      "explain": "从临时目录加载动态库，可劫持函数执行或隐藏恶意代码，属于高可疑行为",
+      "false_positive": "开发调试可能使用自定义库；服务器业务命令中极少需要临时目录预加载",
+      "triage": "提取 .so 文件与哈希，检查其依赖、符号和调用进程，并查 ld.so.preload 是否同步修改",
+      "attack": ["T1574.006"],
+      "references": ["https://attack.mitre.org/techniques/T1574/006/"],
+      "enabled": true
+    },
+    {
+      "id": "lx_shadow_access",
+      "name": "读取或复制口令散列文件",
+      "severity": "medium",
+      "kind": "row",
+      "scope": ["auth", "syslog", "shell", "audit"],
+      "match": {
+        "raw": { "iregex": "((cat|less|more|tail|cp|dd)\\s+[^;|]*(/etc/shadow|/etc/gshadow)|\\bunshadow\\b)" }
+      },
+      "explain": "读取 shadow/gshadow 或执行 unshadow，可能是在收集口令散列用于离线破解",
+      "false_positive": "管理员排障和备份可能读取；必须结合账号、来源及文件是否被复制到临时目录",
+      "triage": "确认执行账号与目的路径，随后检查压缩、外传和 John/Hashcat 等破解工具活动",
+      "attack": ["T1003.008"],
+      "references": ["https://attack.mitre.org/techniques/T1003/008/"],
+      "enabled": true
+    },
+    {
+      "id": "lx_base64_decode_exec",
+      "name": "Base64 解码后交给 Shell",
+      "severity": "high",
+      "kind": "row",
+      "scope": ["auth", "syslog", "shell", "audit"],
+      "match": {
+        "raw": { "iregex": "(base64\\s+(-d|--decode)|openssl\\s+enc\\s+-d)[^|;]{0,160}\\|\\s*(sudo\\s+)?(ba|z|k)?sh\\b" }
+      },
+      "explain": "将编码内容解码后直接交给 Shell，常用于隐藏真实命令和绕过命令行关键字检测",
+      "false_positive": "少量部署脚本使用编码配置；正常部署一般解码到文件而不是直接执行",
+      "triage": "保留并解码原始内容，检查下载地址、回连、持久化与凭据访问行为",
+      "attack": ["T1027", "T1059.004"],
+      "references": ["https://attack.mitre.org/techniques/T1027/", "https://attack.mitre.org/techniques/T1059/004/"],
+      "enabled": true
+    },
+    {
+      "id": "lx_dev_shm_exec",
+      "name": "内存文件系统落地并赋权执行",
+      "severity": "high",
+      "kind": "row",
+      "scope": ["auth", "syslog", "shell", "audit"],
+      "match": {
+        "raw": { "iregex": "(chmod\\s+[^;]*\\+x[^;]*/dev/shm/|/dev/shm/[^\\s]+\\.(elf|bin|sh|py|pl)|/dev/shm/\\.[A-Za-z0-9_.-]+)" }
+      },
+      "explain": "在 /dev/shm 写入并执行文件，可减少磁盘痕迹，是恶意载荷常见落点",
+      "false_positive": "少数高性能程序会使用共享内存目录，但赋权执行隐藏文件并不常见",
+      "triage": "尽快提取文件与进程内存，重启会丢失证据；检查同目录隐藏文件和进程打开句柄",
+      "attack": ["T1105", "T1059.004"],
+      "references": ["https://attack.mitre.org/techniques/T1105/"],
+      "enabled": true
+    },
+    {
+      "id": "lx_cron_download",
+      "name": "计划任务包含下载或回连",
+      "severity": "high",
+      "kind": "row",
+      "scope": ["auth", "syslog", "shell", "audit"],
+      "match": {
+        "raw": { "iregex": "(?=[\\s\\S]*(crontab|/etc/cron|/var/spool/cron))(?=[\\s\\S]*(curl|wget|/dev/tcp/|nc\\s|ncat\\s|base64|/tmp/|/dev/shm/))" }
+      },
+      "explain": "计划任务内容包含下载、回连、解码或临时目录执行，比单纯 crontab -e 更能说明恶意持久化",
+      "false_positive": "正常备份和监控脚本也可能下载；重点核对外部地址、执行频率和文件路径",
+      "triage": "导出完整任务并定位真实脚本，检查远程地址和历次下载文件哈希",
+      "attack": ["T1053.003", "T1105"],
+      "references": ["https://attack.mitre.org/techniques/T1053/003/", "https://attack.mitre.org/techniques/T1105/"],
+      "enabled": true
+    }
+  ]
+}

@@ -1,0 +1,110 @@
+{
+  "version": "1.0",
+  "category": "windows_evasion",
+  "category_name": "Windows 驱动与系统通道",
+  "rules": [
+    {
+      "id": "win_wmi_permanent_subscription",
+      "name": "WMI 永久事件订阅 5861",
+      "severity": "high",
+      "kind": "row",
+      "scope": "win",
+      "match": {
+        "eventId": {
+          "eq": 5861
+        }
+      },
+      "explain": "有人注册了常驻的 WMI 事件消费者，系统重启后依然生效。这是 T1546.003 的标准实现，正常业务几乎不会用到",
+      "false_positive": "极少数监控或资产管理系统会用永久订阅（旧版 SCCM 客户端、部分国产终端 agent）；核对订阅名与执行内容",
+      "triage": "先看 Consumer 里的命令行或脚本路径，再看 Query 的触发条件（如 __InstanceCreationEvent），最后关联同时段的进程创建与文件落地",
+      "attack": [
+        "T1546.003",
+        "T1047"
+      ],
+      "references": [
+        "https://attack.mitre.org/techniques/T1546/003/",
+        "https://learn.microsoft.com/en-us/windows/win32/wmisdk/receiving-events-at-all-times"
+      ],
+      "enabled": true
+    },
+    {
+      "id": "win_unsigned_driver",
+      "name": "未签名或证书失效的驱动加载",
+      "severity": "high",
+      "kind": "row",
+      "scope": "win",
+      "match": {
+        "eventId": {
+          "in": [
+            3033,
+            3077
+          ]
+        },
+        "msg": {
+          "iregex": "\\\\drivers\\\\|\\.sys\\b"
+        }
+      },
+      "explain": "代码完整性拒绝或放行了签名不合规的内核驱动。BYOVD（自带漏洞驱动）攻击必须先过这一关，用它杀掉杀软或读内核内存",
+      "false_positive": "老旧业务软件、加密狗驱动、部分硬件厂商的测试签名驱动；本机实测 3033 大量来自 Chrome 更新的 DLL，加了 .sys/drivers 路径过滤后已排除；仍要核对驱动路径是否在 System32\\drivers 之外",
+      "triage": "取驱动完整路径与签名者，查该文件是否刚落盘、由哪个进程加载，再判断是否与杀软/EDR 被停用同时发生",
+      "attack": [
+        "T1068",
+        "T1562.001"
+      ],
+      "references": [
+        "https://attack.mitre.org/techniques/T1068/",
+        "https://www.microsoft.com/security/blog/2019/12/10/preventing-and-detecting-bypassing-driver-signature-enforcement/"
+      ],
+      "enabled": true
+    },
+    {
+      "id": "win_firewall_rule_added",
+      "name": "防火墙新增放行规则",
+      "severity": "medium",
+      "kind": "row",
+      "scope": "win",
+      "match": {
+        "eventId": {
+          "in": [
+            2097,
+            2004
+          ]
+        }
+      },
+      "explain": "防火墙策略被新增或修改。攻击者拿不到交互式 shell 时，常用 netsh advfirewall 直接开端口放行 C2",
+      "false_positive": "正常软件安装也会加规则（如打印机、虚拟网卡）；本机实测添加事件是 2097，2004 是文档记载的旧版 ID，两个都收",
+      "triage": "提取规则名、方向、端口与执行进程（Application 字段），对照同时段的服务安装与进程创建",
+      "attack": [
+        "T1562.004"
+      ],
+      "references": [
+        "https://attack.mitre.org/techniques/T1562/004/",
+        "https://learn.microsoft.com/en-us/windows/security/threat-protection/auditing/event-2003"
+      ],
+      "enabled": true
+    },
+    {
+      "id": "win_smb_auth_fail",
+      "name": "SMB 会话认证失败（入站）",
+      "severity": "medium",
+      "kind": "row",
+      "scope": "win",
+      "match": {
+        "eventId": {
+          "eq": 551
+        }
+      },
+      "explain": "有客户端连接本机 SMB 共享时认证失败（STATUS_LOGON_FAILURE 最常见）。这是横向移动的入站面：别人拿错误凭据摸这台机器的共享",
+      "false_positive": "网内设备定期广播、扫描器探测共享、其他机器保存的过期凭据自动重连都会大量产生；本机实测 5 分钟内就有数百条，重点看同源 IP 短时间反复失败或伴随账号锁定（0xc0000234）",
+      "triage": "按客户端 IP 聚合：单一来源高频失败是爆破；跨多来源失败且涉及多个账号是被扫网段；结合 Security 4625 看是否命中已知账号",
+      "attack": [
+        "T1110.001",
+        "T1021.002"
+      ],
+      "references": [
+        "https://attack.mitre.org/techniques/T1110/001/"
+      ],
+      "enabled": true
+    }
+  ]
+}

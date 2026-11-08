@@ -1,0 +1,49 @@
+{
+  "version": "0.2",
+  "category": "scanner",
+  "category_name": "扫描与探测",
+  "rules": [
+    {
+      "id": "scan_ua_known",
+      "name": "已知扫描器 UA",
+      "severity": "medium",
+      "kind": "row",
+      "scope": "web",
+      "match": {
+        "ua": { "icontains_any": ["sqlmap", "nikto", "nmap", "masscan", "awvs", "appscan", "xray", "goby", "fscan", "dirsearch"] }
+      },
+      "explain": "UA 直接暴露了扫描工具身份",
+      "false_positive": "本单位授权的安全扫描也会命中；先确认是否在授权范围内",
+      "tags": ["扫描"],
+      "enabled": true
+    },
+    {
+      "id": "scan_ua_anomaly",
+      "name": "UA 为空或异常短",
+      "severity": "low",
+      "kind": "row",
+      "scope": "web",
+      "match": {
+        "ua": { "len_lt": 10 }
+      },
+      "explain": "正常浏览器不会发空 UA，脚本请求常省略",
+      "false_positive": "curl、监控探针、部分 SDK 也是空 UA；结合路径与频次判断",
+      "tags": ["扫描"],
+      "enabled": true
+    },
+    {
+      "id": "scan_ip_burst",
+      "name": "单 IP 请求爆发",
+      "severity": "high",
+      "kind": "aggregate",
+      "scope": "web",
+      "match": {
+        "agg": { "type": "ip_burst", "window_sec": 60, "min_count": 100, "min_paths": 20 }
+      },
+      "explain": "同一 IP 在 60 秒内请求超过 100 次且覆盖 20 个以上不同路径，典型目录扫描",
+      "false_positive": "压测、CDN 回源、图片批量加载会产生类似峰值；看命中路径是否集中在静态资源",
+      "tags": ["扫描", "频次"],
+      "enabled": true
+    }
+  ]
+}

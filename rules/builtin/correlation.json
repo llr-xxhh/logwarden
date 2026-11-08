@@ -1,0 +1,200 @@
+{
+  "version": "1.0",
+  "category": "correlation",
+  "category_name": "时间窗口关联",
+  "rules": [
+    {
+      "id": "web_404_burst",
+      "name": "单来源批量 404 探测",
+      "severity": "medium",
+      "kind": "aggregate",
+      "scope": "web",
+      "match": {
+        "agg": {
+          "type": "window_count",
+          "where": { "status": { "eq": 404 } },
+          "group_by": "ip",
+          "window_sec": 60,
+          "min_count": 30,
+          "distinct": "path",
+          "min_distinct": 20
+        }
+      },
+      "explain": "同一来源在 60 秒内请求至少 30 次、覆盖至少 20 个不同路径且均返回 404，符合目录或接口枚举",
+      "false_positive": "失效链接集中排查、爬虫抓取旧站点会产生类似流量；核对 UA 与路径字典特征",
+      "triage": "按来源 IP 查看路径清单、请求间隔和后续是否出现 200；有 200 的路径优先核查",
+      "attack": ["T1595.002"],
+      "references": ["https://attack.mitre.org/techniques/T1595/002/", "https://blog.sigmahq.io/introducing-sigma-correlations-52fe377f2527"],
+      "enabled": true
+    },
+    {
+      "id": "web_login_failure_burst",
+      "name": "Web 登录接口连续失败",
+      "severity": "medium",
+      "kind": "aggregate",
+      "scope": "web",
+      "match": {
+        "agg": {
+          "type": "window_count",
+          "where": {
+            "status": { "in": [401, 403] },
+            "path": { "iregex": "(login|signin|sign-in|auth|session|passport)" }
+          },
+          "group_by": "ip",
+          "window_sec": 300,
+          "min_count": 20
+        }
+      },
+      "explain": "同一来源在 5 分钟内对登录或认证接口产生至少 20 次 401/403，可能是口令猜测或撞库",
+      "false_positive": "客户端保存过期会话、接口鉴权配置错误也会连续失败；核对响应是否与密码错误一致",
+      "triage": "检查同一来源随后是否出现 200 登录成功，并核对失败账号分布与成功会话来源",
+      "attack": ["T1110.001", "T1110.004"],
+      "references": ["https://attack.mitre.org/techniques/T1110/001/", "https://attack.mitre.org/techniques/T1110/004/"],
+      "enabled": true
+    },
+    {
+      "id": "auth_password_spray",
+      "name": "SSH 多账号密码喷洒",
+      "severity": "high",
+      "kind": "aggregate",
+      "scope": "auth",
+      "match": {
+        "agg": {
+          "type": "window_count",
+          "where": { "result": { "eq": "失败" } },
+          "group_by": "srcip",
+          "window_sec": 300,
+          "min_count": 10,
+          "distinct": "user",
+          "min_distinct": 8
+        }
+      },
+      "explain": "同一来源在 5 分钟内对至少 8 个不同账号认证失败，符合用少量密码尝试多个账号的喷洒行为",
+      "false_positive": "堡垒机、配置错误的多账号自动化任务可能触发；先核对来源是否属于授权运维入口",
+      "triage": "列出被尝试账号，随后追查该来源是否出现成功登录；优先确认其中是否有 root 或运维账号",
+      "attack": ["T1110.003"],
+      "references": ["https://attack.mitre.org/techniques/T1110/003/", "https://blog.sigmahq.io/introducing-sigma-correlations-52fe377f2527"],
+      "enabled": true
+    },
+    {
+      "id": "win_password_spray",
+      "name": "Windows 多账号密码喷洒 4625",
+      "severity": "high",
+      "kind": "aggregate",
+      "scope": "win",
+      "match": {
+        "agg": {
+          "type": "window_count",
+          "where": { "eventId": { "eq": 4625 } },
+          "group_by": "srcip",
+          "window_sec": 300,
+          "min_count": 10,
+          "distinct": "user",
+          "min_distinct": 8
+        }
+      },
+      "explain": "同一来源在 5 分钟内对至少 8 个不同账号产生 4625，符合密码喷洒而非单账号爆破",
+      "false_positive": "终端服务器、跳板机、Citrix 等多用户系统会聚合不同用户失败；需按来源地址排除共享入口",
+      "triage": "确认来源是否共享终端，导出账号列表并查同源 4624；有成功登录时立即核查对应账号权限",
+      "attack": ["T1110.003"],
+      "references": ["https://attack.mitre.org/techniques/T1110/003/", "https://learn.microsoft.com/en-us/windows/security/threat-protection/auditing/audit-logon", "https://detection.fyi/sigmahq/sigma/unsupported/windows/win_security_susp_failed_remote_logons_single_source/"],
+      "enabled": true
+    },
+    {
+      "id": "fw_port_scan",
+      "name": "单来源扫描大量目的端口",
+      "severity": "medium",
+      "kind": "aggregate",
+      "scope": "firewall",
+      "match": {
+        "agg": {
+          "type": "window_count",
+          "where": { "action": { "eq": "deny" } },
+          "group_by": "srcip",
+          "window_sec": 60,
+          "min_count": 30,
+          "distinct": "dstport",
+          "min_distinct": 20
+        }
+      },
+      "explain": "同一来源在 60 秒内被拒绝访问至少 20 个不同目的端口，符合端口扫描",
+      "false_positive": "网络探测平台、资产测绘任务会产生同类记录；先与授权扫描器地址清单比对",
+      "triage": "统计目标主机与端口分布，检查同一来源是否有被放行的连接及后续成功会话",
+      "attack": ["T1046"],
+      "references": ["https://attack.mitre.org/techniques/T1046/"],
+      "enabled": true
+    },
+    {
+      "id": "fw_host_scan",
+      "name": "单来源扫描大量目的主机",
+      "severity": "medium",
+      "kind": "aggregate",
+      "scope": "firewall",
+      "match": {
+        "agg": {
+          "type": "window_count",
+          "where": { "action": { "eq": "deny" } },
+          "group_by": "srcip",
+          "window_sec": 60,
+          "min_count": 30,
+          "distinct": "dstip",
+          "min_distinct": 20
+        }
+      },
+      "explain": "同一来源在 60 秒内被拒绝访问至少 20 台不同主机，符合网段探测或横向扫描",
+      "false_positive": "监控轮询、资产发现和漏洞扫描会产生同类记录；按任务时间与扫描器清单排除",
+      "triage": "还原目标网段与端口，确认源主机是否失陷，并检查是否扫描到高价值资产",
+      "attack": ["T1046", "T1018"],
+      "references": ["https://attack.mitre.org/techniques/T1046/", "https://attack.mitre.org/techniques/T1018/"],
+      "enabled": true
+    },
+    {
+      "id": "auth_fail_then_success",
+      "name": "SSH 连续失败后登录成功",
+      "severity": "high",
+      "kind": "aggregate",
+      "scope": "auth",
+      "match": {
+        "agg": {
+          "type": "fail_then_success",
+          "fail": { "result": { "eq": "失败" } },
+          "success": { "result": { "eq": "成功" } },
+          "group_by": "srcip",
+          "window_sec": 600,
+          "min_failures": 5,
+          "same_user": false
+        }
+      },
+      "explain": "同一来源在 10 分钟内先产生至少 5 次失败再登录成功，可能表示口令已被猜中",
+      "false_positive": "用户多次输错后终于输入正确密码也会触发；结合失败次数、账号和来源信誉判断",
+      "triage": "直接核对成功登录的账号、来源、时间和后续命令；失败与成功账号不同也要排查是否多账号尝试",
+      "attack": ["T1110.001", "T1078"],
+      "references": ["https://attack.mitre.org/techniques/T1110/001/", "https://attack.mitre.org/techniques/T1078/"],
+      "enabled": true
+    },
+    {
+      "id": "win_fail_then_success",
+      "name": "Windows 连续 4625 后出现 4624",
+      "severity": "high",
+      "kind": "aggregate",
+      "scope": "win",
+      "match": {
+        "agg": {
+          "type": "fail_then_success",
+          "fail": { "eventId": { "eq": 4625 } },
+          "success": { "eventId": { "eq": 4624 } },
+          "group_by": "srcip",
+          "window_sec": 600,
+          "min_failures": 5,
+          "same_user": false
+        }
+      },
+      "explain": "同一来源在 10 分钟内至少 5 次 4625 后出现 4624，可能表示爆破最终成功",
+      "false_positive": "共享终端与用户正常输错密码均可触发；需要结合来源是否共享、失败账号和成功账号确认",
+      "triage": "确认成功事件账号与登录类型，追溯失败账号列表，并检查该会话后续 4688、4720、7045 等事件",
+      "attack": ["T1110.001", "T1078"],
+      "references": ["https://learn.microsoft.com/en-us/windows/security/threat-protection/auditing/audit-logon", "https://attack.mitre.org/techniques/T1110/001/", "https://attack.mitre.org/techniques/T1078/"],
+      "enabled": true
+    }
+  ]
+}
