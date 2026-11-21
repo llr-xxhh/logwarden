@@ -127,7 +127,24 @@ def start_browser(name: str, debug_port: int, url: str) -> tuple[str, str]:
         if candidate == "firefox":
             args = [executable, "--remote-debugging-port", str(debug_port), "--profile", str(profile), "--new-window", url]
         else:
-            args = [executable, "--remote-debugging-port=%d" % debug_port, "--user-data-dir=%s" % profile, "--no-first-run", "--no-default-browser-check", "--new-window", url]
+            # 这个 profile 只承载 CDP 和工具界面，不需要 Chrome 的后台服务：
+            # 关掉组件包下载（component_crx_cache 能占到 40MB）、证书/后台网络、
+            # 同步和默认应用，并给网页缓存设上限，profile 从百 MB 级压到 20MB 级。
+            args = [
+                executable,
+                "--remote-debugging-port=%d" % debug_port,
+                "--user-data-dir=%s" % profile,
+                "--no-first-run",
+                "--no-default-browser-check",
+                "--disable-background-networking",
+                "--disable-component-update",
+                "--disable-default-apps",
+                "--disable-sync",
+                "--disable-features=Translate,MediaRouter,OptimizationHints",
+                "--disk-cache-size=16777216",
+                "--new-window",
+                url,
+            ]
         try:
             process = subprocess.Popen(args, cwd=str(ROOT), stdin=subprocess.DEVNULL, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
         except OSError as exc:

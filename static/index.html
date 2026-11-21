@@ -647,6 +647,20 @@ tbody tr.clk{cursor:pointer}
 .srctab svg{width:15px;height:15px;fill:none;stroke:currentColor;stroke-width:1.4;stroke-linecap:round;stroke-linejoin:round}
 .srctab .bd{font-size:10px;background:var(--amber-l);color:var(--amber);border-radius:4px;padding:1px 5px;font-weight:500}
 .srcpane{display:none}.srcpane.on{display:block}
+/* 本机 Windows 日志：点选导入 */
+.wl-list{max-height:420px;overflow:auto;border:1px solid var(--border);border-radius:10px;background:var(--surface)}
+.wl-row{display:flex;align-items:center;gap:10px;padding:8px 12px;border-bottom:1px solid var(--border);font-size:12.5px}
+.wl-row:last-child{border-bottom:none}
+.wl-row.dim{opacity:.55}
+.wl-row input[type=checkbox]{width:15px;height:15px;accent-color:var(--pri);flex:none}
+.wl-main{flex:1;min-width:0}
+.wl-n1{color:var(--text);font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.wl-n2{color:var(--muted);font-size:11px;margin-top:2px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.wl-size{flex:none;color:var(--muted);font-size:11.5px;font-variant-numeric:tabular-nums;width:74px;text-align:right}
+.wl-src{flex:none;width:190px}
+.wl-src select{width:100%;font-size:12px;padding:4px 6px;border:1px solid var(--border);border-radius:6px;background:var(--surface);color:var(--text)}
+.wl-tag{flex:none;font-size:10.5px;border-radius:4px;padding:2px 6px;background:var(--pri-xl);color:var(--pri-d);font-weight:500}
+.wl-tag.warn{background:var(--amber-l);color:var(--amber)}
 
 .form{background:var(--surface);border:1px solid var(--border);border-radius:14px;padding:20px 22px}
 .fgrid{display:grid;grid-template-columns:repeat(4,1fr);gap:14px 16px}
@@ -728,7 +742,7 @@ tbody tr.clk{cursor:pointer}
     <div class="sec">任务</div>
     <div class="task on" id="taskCurrent" style="display:none"><div class="t1" id="taskCurName">—</div><div class="t2" id="taskCurMeta">—</div></div>
   </div>
-  <div class="side-foot"><span>DuckDB · 本地</span><span>v0.7</span></div>
+  <div class="side-foot"><span>DuckDB · 本地</span><span>v0.8</span></div>
 </aside>
 
 <main>
@@ -833,6 +847,10 @@ tbody tr.clk{cursor:pointer}
             <svg viewBox="0 0 16 16"><path d="M8 11V2"/><path d="M4.5 5.5 8 2l3.5 3.5"/><path d="M2.5 11v2.5a1 1 0 0 0 1 1h9a1 1 0 0 0 1-1V11"/></svg>
             本地文件
           </div>
+          <div class="srctab" data-src="winlocal">
+            <svg viewBox="0 0 16 16"><rect x="2" y="2.5" width="12" height="9" rx="1.2"/><path d="M5.5 14h5M8 11.5V14"/><path d="M5 5.5h6M5 8h4"/></svg>
+            本机 Windows 日志
+          </div>
           <div class="srctab" data-src="remote">
             <svg viewBox="0 0 16 16"><rect x="2" y="2.5" width="12" height="4.5" rx="1.2"/><rect x="2" y="9" width="12" height="4.5" rx="1.2"/><path d="M4.5 4.75h.01M4.5 11.25h.01"/></svg>
             远程拉取
@@ -847,6 +865,19 @@ tbody tr.clk{cursor:pointer}
         <div class="srcpane on" id="src-local">
           <input type="file" id="fileInput" style="display:none" multiple>
           <div class="note" style="margin:0">日志在<b>上方清单的每一行</b>直接导入：把文件拖进「拖入导入日志」框，或点「选择文件导入」。要收某个源但清单里没有它，先在「证据清单」抽屉（右上角按钮）里勾上。</div>
+        </div>
+
+        <!-- 本机 Windows 日志：扫描 winevt\Logs，勾选即导入 -->
+        <div class="srcpane" id="src-winlocal">
+          <div class="note" style="margin:0 0 10px">直接读本机 <b>%SystemRoot%\System32\winevt\Logs</b>，不用去文件夹里找。按<b>必要项 → 推荐项 → 可选项</b>排序标注（与上方日志清单同级），必要/推荐默认勾选；不在本任务组件的沉底置灰。<b>Security.evtx 需要管理员权限</b>，读不了时请以管理员身份重启本工具。日志服务正在写入，个别最新事件可能解析失败，属正常。</div>
+          <div class="fbar" style="margin-bottom:10px">
+            <button class="btn pri" id="btnWlScan">扫描本机日志</button>
+            <button class="btn" id="btnWlAll" style="display:none">全选可导入</button>
+            <span id="wlStatus" style="font-size:12px;color:var(--muted)"></span>
+            <span class="sp"></span>
+            <button class="btn pri" id="btnWlImport" style="display:none">导入选中</button>
+          </div>
+          <div class="wl-list" id="wlList" style="display:none"></div>
         </div>
 
         <!-- 远程 -->
@@ -2403,7 +2434,7 @@ function renderTable(){
   }).join('');
   document.getElementById('rows').innerHTML=page.map(function(l){
     var cls=l.crit?'crit':((l.flags&&l.flags.length)?'flag':'');
-    return '<tr class="'+cls+'">'+vis.map(function(c){return cellHTML(c.k,l)}).join('')+'</tr>'
+    return '<tr class="'+cls+'" data-id="'+(l.id==null?'':esc(String(l.id)))+'" title="双击查看原始内容">'+vis.map(function(c){return cellHTML(c.k,l)}).join('')+'</tr>'
   }).join('')||'<tr><td colspan="'+vis.length+'" style="padding:40px;text-align:center;color:var(--faint)">无匹配结果</td></tr>';
   document.getElementById('pinfo').textContent='第 '+state.page+' / '+pages+' 页　共 '+total+' 条（原始 '+LOGS.length+' 条）';
   document.getElementById('prev').disabled=state.page<=1;document.getElementById('next').disabled=state.page>=pages;
@@ -4192,6 +4223,6 @@ if(location.protocol==='file:'){
   <div class="evi-note">勾选即生效：勾上进入任务清单（可导入），取消后从清单和源列表隐藏；<b>已导入的数据保留</b>，重新勾选即恢复。取消最后一项会被拒绝。</div>
   <div class="evi-body" id="eviDrawerBody"></div>
 </aside>
-<script src="live.js?v=14"></script>
+<script src="live.js?v=17"></script>
 </body>
 </html>

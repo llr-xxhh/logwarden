@@ -7,10 +7,10 @@ from typing import Any
 
 from fastapi import FastAPI, File, Form, HTTPException, UploadFile
 from fastapi.responses import JSONResponse
-from fastapi.staticfiles import StaticFiles
 
+from static_files import NoCacheStatic
 from storage import Store
-from services import custom_sources, remote, web_format
+from services import custom_sources, local_logs, remote, web_format
 from services.importer import Importer
 from services.query import QueryService
 from services.rule_engine import RuleEngine, RuleStore
@@ -21,7 +21,7 @@ queries = QueryService(store)
 importer = Importer(store, queries)
 rule_store = RuleStore()
 engine = RuleEngine(store, queries, rule_store)
-app = FastAPI(title="LogWarden", version="0.7", docs_url="/api/docs", redoc_url=None)
+app = FastAPI(title="LogWarden", version="0.8", docs_url="/api/docs", redoc_url=None)
 
 
 @app.middleware("http")
@@ -220,6 +220,57 @@ def import_text(task_id: str, data: dict[str, Any]) -> dict[str, Any]:
     return importer.import_text(task_id, source_id, data.get("fmt") or source.get("format", "text"), text)
 
 
+# --- 本机 Windows 日志：点选即导入，不用去文件夹里翻 -------------------------
+# 只读 %SystemRoot%\System32\winevt\Logs，文件名白名单校验在 local_logs.resolve。
+
+@app.get("/api/local/evtx")
+def local_evtx(task_id: str | None = None) -> dict[str, Any]:
+    """枚举本机事件日志文件，带大小/修改时间/可读性/日志源映射。
+
+    带 task_id 时按任务组件范围过滤可归属源，并标注必要项/推荐项/可选项。
+    """
+    allowed: set[str] | None = None
+    if task_id:
+        task = store.get_task(task_id)
+        allowed = set()
+        for cid in task["components"]:
+            component = queries.components.get(cid)
+            if component:
+                allowed.update(component["sources"])
+    return local_logs.list_files(queries.sources, allowed)
+
+
+@app.post("/api/tasks/{task_id}/imports/local", status_code=201)
+def import_local_evtx(task_id: str, data: dict[str, Any]) -> dict[str, Any]:
+    """从本机 winevt\\Logs 直读 EVTX 导入，省去手动找文件再上传。"""
+    source_id = str(data.get("source_id") or "")
+    source = queries.source(source_id)
+    if source.get("format") != "evtx":
+        raise ValueError("该日志源不是 Windows 事件日志（EVTX），请走文件上传或远程拉取")
+    task = store.get_task(task_id)
+    # 一键导入的便利：源没勾进任务时自动补勾，但范围仍限任务组件，与证据抽屉同规则
+    if source_id not in task["source_ids"]:
+        allowed: list[str] = []
+        for cid in task["components"]:
+            component = queries.components.get(cid)
+            if component:
+                allowed.extend(component["sources"])
+        if source_id not in allowed:
+            raise ValueError("该日志源不属于当前任务的组件，请先在证据清单里勾选对应组件")
+        store.update_task_sources(task_id, list(task["source_ids"]) + [source_id])
+    filename = str(data.get("filename") or "").strip()
+    if not filename:
+        paths = source.get("paths") or []
+        if not paths:
+            raise ValueError("该日志源没有默认文件路径，请显式指定 filename")
+        filename = Path(str(paths[0])).name
+    path = local_logs.resolve(filename)
+    size = path.stat().st_size
+    # EventLog 服务持有写锁，共享读直读；尾部正在写的 chunk 解析失败会计入 failed
+    with open(path, "rb") as fh:
+        return importer.import_stream(task_id, source_id, source.get("format", "evtx"), path.name, fh, size)
+
+
 # --- 远程拉取 ---------------------------------------------------------------
 # 凭据只走请求体，不落库；拉取是后台任务，接口立刻返回 job，前端轮询进度。
 
@@ -389,7 +440,7 @@ def alerts(task_id: str, source_id: str) -> dict[str, Any]:
     return engine.alerts(task_id, source_id)
 
 
-app.mount("/", StaticFiles(directory=str(ROOT / "static"), html=True), name="static")
+app.mount("/", NoCacheStatic(directory=str(ROOT / "static"), html=True), name="static")
 
 
 if __name__ == "__main__":

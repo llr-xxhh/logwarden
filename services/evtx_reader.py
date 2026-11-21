@@ -54,6 +54,12 @@ def to_record(event: dict[str, Any]) -> dict[str, Any]:
             "TimeCreated": stamp,
             "Level": system.get("Level"),
             "Channel": system.get("Channel"),
+            # 关联字段（EventRecordID/ActivityID/进程线程/关键字）交给 event_record
+            # 统一转成列；EVTX 组件的 JSON 里它们是 System 下的对象，flat 里没有。
+            "EventRecordID": system.get("EventRecordID"),
+            "Correlation": system.get("Correlation"),
+            "Execution": system.get("Execution"),
+            "Keywords": system.get("Keywords"),
         }
     )
     if isinstance(provider, dict):

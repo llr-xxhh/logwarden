@@ -281,6 +281,7 @@ WINDOWS_EVENT_NAMES: dict[int, str] = {
     5857: "WMI 提供程序加载", 5858: "WMI 提供程序错误", 5860: "WMI 临时事件订阅", 5861: "WMI 永久事件订阅",
     # 代码完整性（CodeIntegrity）—— BYOVD 入口
     3033: "未签名映像被拦截", 3076: "映像签名不符", 3077: "映像签名不受信任",
+    3089: "签名信息关联",
     # 防火墙规则（Firewall With Advanced Security）
     # 实测 Win10：添加是 2097，删除是 2006；2004/2005 是文档里的添加/修改，不同版本各写各的
     2002: "防火墙设置已更改", 2004: "防火墙规则已添加", 2005: "防火墙规则已修改",
@@ -288,8 +289,11 @@ WINDOWS_EVENT_NAMES: dict[int, str] = {
     2010: "网络配置文件已更改", 2033: "清空全部防火墙规则", 2097: "防火墙规则已添加",
     # SMB 客户端
     30803: "SMB 连接成功", 31001: "SMB 认证失败", 31002: "SMB 连接失败",
+    30810: "SMB TCP/IP 接口添加", 30811: "SMB TCP/IP 接口删除",
+    30812: "SMB TDI 接口添加", 30813: "SMB TDI 接口删除",
     # SMB 服务端（SMBServer）—— 入站方向：谁连了本机的共享
     551: "SMB 会话认证失败", 1009: "拒绝匿名访问", 1023: "共享启用存取枚举", 1025: "共享可被匿名访问",
+    1010: "SMB 终结点添加", 1011: "SMB 终结点删除",
     # Sysmon
     1: "创建进程", 2: "改文件时间", 3: "网络连接", 4: "服务状态变更", 5: "进程终止",
     6: "加载驱动", 7: "加载映像", 8: "创建远程线程", 9: "读取磁盘", 10: "访问进程",
@@ -312,18 +316,23 @@ POWERSHELL_ONLY_IDS = frozenset({400, 403, 600, 800, 4103, 4104, 40961, 40962})
 CHANNEL_ONLY_IDS: dict[int, str] = {
     1147: "remoteconnectionmanager", 1148: "remoteconnectionmanager", 1149: "remoteconnectionmanager",
     258: "remoteconnectionmanager", 261: "remoteconnectionmanager", 263: "remoteconnectionmanager",
-    3033: "codeintegrity", 3076: "codeintegrity", 3077: "codeintegrity",
+    3033: "codeintegrity", 3076: "codeintegrity", 3077: "codeintegrity", 3089: "codeintegrity",
     2002: "firewall", 2004: "firewall", 2005: "firewall", 2006: "firewall",
     2009: "firewall", 2010: "firewall", 2033: "firewall", 2097: "firewall",
     5857: "wmi-activity", 5858: "wmi-activity", 5860: "wmi-activity", 5861: "wmi-activity",
     30803: "smbclient", 31001: "smbclient", 31002: "smbclient",
+    30810: "smbclient", 30811: "smbclient", 30812: "smbclient", 30813: "smbclient",
     551: "smbserver", 1009: "smbserver", 1023: "smbserver", 1025: "smbserver",
+    1010: "smbserver", 1011: "smbserver",
 }
 # 同号 ID 撞了全局字典时，按通道覆盖。10/12 在 Sysmon 里是「访问进程 / 创建注册表」，
 # 在 Security-Mitigations 里是「缓解措施阻止 / 审计」——必须先看通道再查名字。
 CHANNEL_OVERRIDES: dict[str, dict[int, str]] = {
     "security-mitigations": {2: "缓解措施审计", 10: "缓解措施阻止", 12: "缓解措施审计"},
 }
+
+
+UNKNOWN_EVENT = "Windows 事件"
 
 
 def event_name(eid: int, channel: str = "") -> str:
@@ -333,7 +342,7 @@ def event_name(eid: int, channel: str = "") -> str:
     """
     name = WINDOWS_EVENT_NAMES.get(eid)
     if name is None:
-        return "Windows 事件"
+        return UNKNOWN_EVENT
     low = (channel or "").lower()
     for hint, table in CHANNEL_OVERRIDES.items():
         if hint in low:
@@ -343,13 +352,37 @@ def event_name(eid: int, channel: str = "") -> str:
     if not low:
         return name
     if eid in SYSMON_ONLY_IDS and "sysmon" not in low:
-        return "Windows 事件"
+        return UNKNOWN_EVENT
     if eid in POWERSHELL_ONLY_IDS and "powershell" not in low:
-        return "Windows 事件"
+        return UNKNOWN_EVENT
     hint = CHANNEL_ONLY_IDS.get(eid)
     if hint and hint not in low:
-        return "Windows 事件"
+        return UNKNOWN_EVENT
     return name
+
+
+def provider_label(data: dict[str, Any], system: dict[str, Any], eid: int) -> str:
+    """未知事件不再一律叫「Windows 事件」，用 Provider 短名 + ID 兜底。
+
+    同一个 ID 在不同 Provider 下含义可能完全不同：本机 System 通道里的 7021
+    来自 Intel 网卡驱动 Netwtw14，是连接遥测，和 SCM 的「服务启动失败回退」
+    毫无关系。查不到映射时显示来源，比硬套一个错误中文名安全。
+    """
+    raw = data.get("Provider") or system.get("Provider")
+    if isinstance(raw, dict):
+        attrs = raw.get("#attributes")
+        attrs = attrs if isinstance(attrs, dict) else {}
+        name = attrs.get("Name") or raw.get("#text") or ""
+    else:
+        name = raw or ""
+    name = text_value(name).strip()
+    if not name:
+        return UNKNOWN_EVENT
+    if name.startswith("Microsoft-Windows-"):
+        name = name[len("Microsoft-Windows-"):]
+    elif "." in name:
+        name = name.rsplit(".", 1)[-1]
+    return f"{name} · {eid}" if eid else name
 
 
 def flatten_event_data(payload: dict[str, Any]) -> dict[str, Any]:
@@ -626,6 +659,26 @@ def event_record(data: dict[str, Any]) -> dict[str, Any]:
         message = " ".join(x for x in (image, command) if x)
     level = text_value(plain_value(flat.get("level") or flat.get("LevelName") or flat.get("Level") or "信息"))
     level = {"1": "严重", "2": "错误", "3": "警告", "4": "信息", "0": "信息"}.get(level, level)
+    # 事件头里的关联字段：排错/串联一次登录会话时靠它们，不能只躺在 raw 里。
+    # Correlation/Execution 在 JSON 里是带 #attributes 的对象，flat 里则已拍平。
+    correlation = flat.get("Correlation")
+    if not isinstance(correlation, dict):
+        correlation = system.get("Correlation") if isinstance(system.get("Correlation"), dict) else {}
+    attrs = correlation.get("#attributes") if isinstance(correlation.get("#attributes"), dict) else correlation
+    execution = flat.get("Execution")
+    if not isinstance(execution, dict):
+        execution = system.get("Execution") if isinstance(system.get("Execution"), dict) else {}
+    exec_attrs = execution.get("#attributes") if isinstance(execution.get("#attributes"), dict) else execution
+    record_id = text_value(flat.get("EventRecordID") or system.get("EventRecordID")).strip()
+    activity_id = text_value(attrs.get("ActivityID") or attrs.get("ActivityId") or flat.get("ActivityID")).strip()
+    process_id = text_value(exec_attrs.get("ProcessID") or flat.get("ProcessID")).strip()
+    thread_id = text_value(exec_attrs.get("ThreadID") or flat.get("ThreadID")).strip()
+    keywords = text_value(flat.get("Keywords") or system.get("Keywords")).strip()
+    event = text_value(flat.get("event") or "")
+    if not event:
+        event = event_name(eid, channel)
+    if event == UNKNOWN_EVENT:
+        event = provider_label(flat, system, eid)
     return {
         "ts": ts,
         "host": text_value(flat.get("host") or flat.get("Computer") or system.get("Computer")),
@@ -637,7 +690,7 @@ def event_record(data: dict[str, Any]) -> dict[str, Any]:
         "msg": message,
         "kind": text_value(flat.get("kind") or "脚本块" if eid in (4103, 4104) else flat.get("kind") or ""),
         "text": text_value(flat.get("text") or flat.get("ScriptBlockText") or message),
-        "event": text_value(flat.get("event") or event_name(eid, channel)),
+        "event": event,
         "image": image,
         "cmdline": command,
         "target": _first(flat.get("target"), flat.get("TargetFilename"), flat.get("TargetObject"),
@@ -646,26 +699,64 @@ def event_record(data: dict[str, Any]) -> dict[str, Any]:
         "parent": _first(flat.get("parent"), flat.get("ParentImage"), flat.get("ParentProcessName"),
                          flat.get("CreatorProcessName")),
         "sid": _first(flat.get("TargetUserSid"), flat.get("TargetSid"), flat.get("SubjectUserSid"), flat.get("sid")),
+        "recordId": record_id,
+        "activityId": activity_id,
+        "processId": process_id,
+        "threadId": thread_id,
+        "keywords": keywords,
         "detail": build_detail(flat),
     }
 
 
 def xml_event(element: ET.Element) -> dict[str, Any]:
+    """wevtutil /f:xml、ToXml() 输出的事件元素 → 扁平字段。
+
+    无名 <Data> 按位置编号（Data0/Data1）——统一叫 "Data" 会互相覆盖，
+    XML 导出没有 EventData/@Name 时整条事件的数据只剩最后一个值。
+    UserData 下没有 Data 包装的字段、RenderingInfo/Message（导出 XML 常带）
+    也一并收进来，直读 EVTX 和 XML 导入的结果才对得上。
+    """
     data: dict[str, Any] = {}
+    unnamed = 0
     for child in element.iter():
         tag = child.tag.rsplit("}", 1)[-1]
-        if tag == "EventID":
-            data["EventID"] = child.text
+        text = (child.text or "").strip()
+        if tag == "Data":
+            name = (child.attrib.get("Name") or "").strip()
+            if not name:
+                name = "Data%d" % unnamed
+                unnamed += 1
+            data[name] = text
+        elif tag == "EventID":
+            data["EventID"] = text
         elif tag == "Computer":
-            data["Computer"] = child.text
+            data["Computer"] = text
         elif tag == "TimeCreated":
             data["TimeCreated"] = child.attrib.get("SystemTime")
         elif tag == "Level":
-            data["Level"] = child.text
+            data["Level"] = text
         elif tag == "Channel":
-            data["Channel"] = child.text
-        elif tag == "Data":
-            data[child.attrib.get("Name", "Data")] = child.text or ""
+            data["Channel"] = text
+        elif tag == "EventRecordID":
+            data["EventRecordID"] = text
+        elif tag == "Keywords":
+            data.setdefault("Keywords", text)
+        elif tag == "Correlation":
+            activity = child.attrib.get("ActivityID") or child.attrib.get("ActivityId")
+            if activity:
+                data["ActivityID"] = activity
+        elif tag == "ActivityID":
+            data["ActivityID"] = text or child.attrib.get("Guid") or ""
+        elif tag == "Execution":
+            for key in ("ProcessID", "ThreadID"):
+                if child.attrib.get(key):
+                    data.setdefault(key, child.attrib[key])
+        elif tag == "Message":
+            # 渲染消息比拼出来的摘要权威，同名时覆盖
+            data["Message"] = text
+        elif text and len(child) == 0:
+            # UserData（如 WMI）下直接挂的子元素，没有 Data/Name 包装
+            data.setdefault(tag, text)
     return event_record(data)
 
 

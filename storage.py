@@ -392,13 +392,16 @@ class Store:
                 conn.mark_ready()
         return conn
 
-    SCHEMA_VERSION = 4
+    SCHEMA_VERSION = 5
     TABLE_UPGRADES = {
         "raw_combined": {"xff": "TEXT", "host": "TEXT", "ext": "TEXT"},
         "import": {"nulls_json": "TEXT NOT NULL DEFAULT '{}'"},
         # v4：Windows 事件补两列——账号 SID 用于区分同名账号，
         # detail 存没映射成列的 EventData 字段（JSON），供详情面板展开
-        "raw_evtx": {"sid": "TEXT", "detail": "TEXT"},
+        # v5：事件头关联字段落列——EventRecordID 定位事件、ActivityID 串同一会话、
+        # ProcessID/ThreadID 对应生成日志的进程、Keywords 区分事件类型
+        "raw_evtx": {"sid": "TEXT", "detail": "TEXT", "recordId": "TEXT",
+                     "activityId": "TEXT", "processId": "TEXT", "threadId": "TEXT", "keywords": "TEXT"},
     }
 
     @classmethod

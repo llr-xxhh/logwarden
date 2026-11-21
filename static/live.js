@@ -855,6 +855,144 @@
       toast('已入库 '+result.rows+' 行，失败 '+result.failed+' 行'+missText(result)+nullWarnText(result));if(taskId===TASK_ID)return loadTask(taskId,data.source_id);
     }).catch(function(e){toast(e.message)}).then(function(){btn.disabled=false});
   };
+  /* ===== 本机 Windows 日志：扫描 winevt\Logs，勾选即导入 =====
+     后端只认日志目录里的裸文件名；带 task_id 扫描时后端按任务组件范围
+     过滤可归属源，并给出必要项/推荐项/可选项级别（与上方日志清单同一套）。
+     排序：必要 → 推荐 → 可选 → 未匹配 → 范围外；必要/推荐预勾选，可选项手勾。 */
+  var WL_DATA=null,WL_BUSY=false;
+  var WL_LV={required:{lb:'必要项',cls:'req'},recommended:{lb:'推荐项',cls:'rec'},optional:{lb:'可选项',cls:'opt'}};
+  function wlLvBadge(level){
+    var lv=WL_LV[level]||WL_LV.recommended;
+    return '<span class="ntlv '+lv.cls+'">'+lv.lb+'</span>';
+  }
+  function wlFmt(n){
+    if(n>=1073741824)return (n/1073741824).toFixed(1)+' GB';
+    if(n>=1048576)return (n/1048576).toFixed(1)+' MB';
+    if(n>=1024)return (n/1024).toFixed(0)+' KB';
+    return n+' B';
+  }
+  function wlRender(){
+    var box=document.getElementById('wlList');if(!box||!WL_DATA)return;
+    var taskSrc=WL_DATA.evtx_sources||[];
+    var opts='<option value="">归入日志源…</option>'+taskSrc.map(function(s){
+      var lv=WL_LV[s.level]||WL_LV.recommended;
+      return '<option value="'+esc(s.id)+'">'+esc(s.name)+'（'+lv.lb+'）</option>';
+    }).join('');
+    box.innerHTML=WL_DATA.files.map(function(f,i){
+      var inTask=f.source_id&&f.allowed;
+      var outTask=f.source_id&&f.allowed===false;
+      var canPick=f.readable&&(inTask||(!f.source_id&&taskSrc.length));
+      var prechecked=inTask&&f.readable&&f.level!=='optional'&&f.enabled!==false;
+      var right;
+      if(inTask){
+        right=wlLvBadge(f.level)+'<span class="wl-tag">'+esc(f.source_name)+'</span>';
+      }else if(outTask){
+        right='<span class="wl-tag warn">'+esc(f.source_name)+' · 不在本任务组件</span>';
+      }else if(taskSrc.length){
+        right='<span class="wl-src"><select data-wl-src="'+i+'">'+opts+'</select></span>';
+      }else{
+        right='<span class="wl-tag warn">无对应日志源</span>';
+      }
+      var note=f.readable?(f.channel+' · 修改于 '+new Date(f.mtime*1000).toLocaleString()):'无读取权限（Security 等需管理员），请以管理员身份重启本工具';
+      return '<div class="wl-row'+(canPick?'':' dim')+'">'
+        +'<input type="checkbox" data-wl="'+i+'"'+(prechecked?' checked':'')+(canPick?'':' disabled')+'>'
+        +'<div class="wl-main"><div class="wl-n1">'+esc(f.file)+'</div><div class="wl-n2">'+esc(note)+'</div></div>'
+        +'<span class="wl-size">'+wlFmt(f.size)+'</span>'+right+'</div>';
+    }).join('')||'<div style="padding:14px;color:var(--muted);font-size:12px">本机事件日志目录为空或不可访问</div>';
+    box.style.display='';
+    document.getElementById('btnWlAll').style.display='';
+    document.getElementById('btnWlImport').style.display='';
+  }
+  function wlSelections(){
+    var out=[];
+    document.querySelectorAll('#wlList input[data-wl]').forEach(function(cb){
+      if(!cb.checked||cb.disabled)return;
+      var i=Number(cb.getAttribute('data-wl')),f=WL_DATA.files[i];
+      var sid=f.source_id&&f.allowed?f.source_id:null;
+      if(!sid){
+        var sel=document.querySelector('#wlList select[data-wl-src="'+i+'"]');
+        sid=sel?sel.value:'';
+      }
+      if(sid)out.push({filename:f.file,source_id:sid,name:f.channel});
+    });
+    return out;
+  }
+  document.getElementById('btnWlScan').onclick=function(){
+    var btn=this;if(btn.disabled||WL_BUSY)return;
+    if(!requireTask())return;
+    btn.disabled=true;
+    document.getElementById('wlStatus').textContent='扫描中…';
+    api('/local/evtx?task_id='+encodeURIComponent(TASK_ID)).then(function(data){
+      WL_DATA=data;
+      var cnt={required:0,recommended:0,optional:0};
+      data.files.forEach(function(f){if(f.source_id&&f.allowed&&f.readable&&cnt[f.level]!=null)cnt[f.level]++});
+      document.getElementById('wlStatus').textContent='共 '+data.files.length+' 个日志文件 · 必要项 '+cnt.required+' · 推荐项 '+cnt.recommended+' · 可选项 '+cnt.optional+'（必要/推荐已预勾选）';
+      wlRender();
+    }).catch(function(e){toast(e.message);document.getElementById('wlStatus').textContent=''}).then(function(){btn.disabled=false});
+  };
+  document.getElementById('btnWlAll').onclick=function(){
+    var boxes=document.querySelectorAll('#wlList input[data-wl]:not(:disabled)');
+    var allOn=true;boxes.forEach(function(cb){if(!cb.checked)allOn=false});
+    boxes.forEach(function(cb){cb.checked=!allOn});
+  };
+  document.getElementById('btnWlImport').onclick=function(){
+    var btn=this;if(btn.disabled||WL_BUSY)return;
+    if(!requireTask())return;
+    var picks=wlSelections();
+    if(!picks.length){toast('先勾选要导入的日志；未匹配的文件请先选「归入日志源」');return}
+    var taskId=TASK_ID,idx=0,okRows=0,okFiles=0,failFiles=0,failMsg='';
+    WL_BUSY=true;btn.disabled=true;
+    var status=document.getElementById('wlStatus');
+    function next(){
+      if(idx>=picks.length||taskId!==TASK_ID){
+        WL_BUSY=false;btn.disabled=false;
+        var summary='入库 '+okFiles+' 个日志 '+okRows.toLocaleString()+' 行'+(failFiles?'，失败 '+failFiles+' 个'+(failMsg?'（'+failMsg+'）':''):'');
+        status.textContent=summary;
+        toast('本机日志导入完成：'+summary);
+        if(taskId===TASK_ID)loadTask(taskId);
+        return;
+      }
+      status.textContent='导入中 '+(idx+1)+'/'+picks.length+'：'+picks[idx].name+'（大文件可能要一会儿）';
+      api('/tasks/'+encodeURIComponent(taskId)+'/imports/local',{method:'POST',json:{source_id:picks[idx].source_id,filename:picks[idx].filename}}).then(function(result){
+        okRows+=result.rows;okFiles++;
+      }).catch(function(e){failFiles++;if(!failMsg)failMsg=e.message}).then(function(){idx++;next()});
+    }
+    next();
+  };
+  /* ===== 原始内容查看：日志浏览表格双击行 =====
+     表格里只放结构化列，EVTX 的 EventData 明细在 detail（单值截断 300 字）。
+     双击行弹出 raw 原始 JSON，查超长命令行、特权列表、未映射字段的完整值。 */
+  function showRawViewer(label, text){
+    var old=document.getElementById('rawViewerBox');if(old)old.remove();
+    var wrap=document.createElement('div');wrap.id='rawViewerBox';
+    wrap.style.cssText='position:fixed;inset:0;z-index:400;background:rgba(15,23,42,.5);display:flex;align-items:center;justify-content:center;padding:22px';
+    var panel=document.createElement('div');
+    panel.style.cssText='width:min(880px,94vw);max-height:82vh;background:#fff;border-radius:10px;box-shadow:0 18px 48px rgba(15,23,42,.3);display:flex;flex-direction:column;overflow:hidden';
+    var head=document.createElement('div');
+    head.style.cssText='display:flex;align-items:center;gap:10px;padding:12px 16px;border-bottom:1px solid var(--border);font-size:13px;color:var(--text)';
+    var title=document.createElement('b');title.textContent='原始内容';
+    var sub=document.createElement('span');sub.style.cssText='color:var(--muted);font-size:12px;flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap';sub.textContent=label||'';
+    var copy=document.createElement('button');copy.className='btn';copy.textContent='复制';copy.onclick=function(){copyText(text,true)};
+    var close=document.createElement('button');close.className='btn';close.textContent='关闭';close.onclick=function(){wrap.remove()};
+    head.appendChild(title);head.appendChild(sub);head.appendChild(copy);head.appendChild(close);
+    var pre=document.createElement('pre');
+    pre.style.cssText='margin:0;padding:14px 16px;overflow:auto;flex:1;font:12px/1.55 ui-monospace,Consolas,monospace;background:#0f172a;color:#d7e5e3;white-space:pre-wrap;word-break:break-word';
+    pre.textContent=text;
+    panel.appendChild(head);panel.appendChild(pre);wrap.appendChild(panel);
+    wrap.addEventListener('click',function(e){if(e.target===wrap)wrap.remove()});
+    document.addEventListener('keydown',function escRaw(e){if(e.key==='Escape'){wrap.remove();document.removeEventListener('keydown',escRaw)}});
+    document.body.appendChild(wrap);
+  }
+  document.getElementById('rows').addEventListener('dblclick',function(e){
+    var tr=e.target.closest?e.target.closest('tr[data-id]'):null;if(!tr)return;
+    var id=tr.getAttribute('data-id'),row=null;
+    for(var i=0;i<LOGS.length;i++){if(String(LOGS[i].id)===id){row=LOGS[i];break}}
+    if(!row)return;
+    if(row.raw==null||row.raw===''){toast('该行原文未随分页加载，看首屏行或按条件重新读取');return}
+    var text=row.raw;
+    try{text=typeof row.raw==='string'?JSON.stringify(JSON.parse(row.raw),null,2):JSON.stringify(row.raw,null,2)}catch(err){}
+    showRawViewer((row.source_id||'')+(row.eventId!=null?' · EventID '+row.eventId:'')+(row.recordId?' · RecordID '+row.recordId:''),String(text));
+  });
   /* ===== 远程拉取：SSH/SFTP · SMB · HTTP =====
      凭据只在这次请求里带过去，不写 localStorage；进度靠轮询 job，不占连接。 */
   var R_PROTO='ssh',R_JOB=null,R_TIMER=null;

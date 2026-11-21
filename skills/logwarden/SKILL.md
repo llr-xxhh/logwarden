@@ -21,7 +21,7 @@ LogWarden 是一个只监听 `127.0.0.1` 的本地日志排查服务。界面是
 
 ```bash
 curl -s --noproxy '*' http://127.0.0.1:8766/api/health
-# {"ok":true,"app":"logwarden","engine":"duckdb","version":"0.7","storage":"...","tasks":0}
+# {"ok":true,"app":"logwarden","engine":"duckdb","version":"0.8","storage":"...","tasks":0}
 ```
 
 - 默认端口 **8766**（可用 `LOGVIEW_PORT` 改）；调试端口 9223（CDP）
@@ -332,6 +332,8 @@ AI 给结论时，**每条都要能指回具体的行**：
 | PATCH | `/api/tasks/{id}/sources` | 增删任务的日志源（body: `{"source_ids":[...]}`） |
 | POST | `/api/tasks/{id}/imports` | 上传文件（multipart） |
 | POST | `/api/tasks/{id}/imports/text` | 文本导入 |
+| GET | `/api/local/evtx` | 枚举本机 winevt\Logs 的 EVTX（大小/可读性/日志源映射） |
+| POST | `/api/tasks/{id}/imports/local` | 本机 EVTX 直读导入（body: `{"source_id":"win_security","filename":"Security.evtx"}`，filename 可省略走源默认路径；源未勾选时自动补勾，限任务组件范围） |
 | GET/DELETE | `/api/tasks/{id}/imports[/{iid}]` | 导入历史 / 回滚整次导入 |
 | POST | `/api/tasks/{id}/query` | 参数化查询（筛选、排序、游标分页） |
 | GET | `/api/tasks/{id}/sources/{sid}/stats` | 统计（`?window=` 秒） |

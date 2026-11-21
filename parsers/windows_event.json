@@ -21,7 +21,12 @@
     "parent",
     "source_id",
     "sid",
+    "recordId",
+    "activityId",
+    "processId",
+    "threadId",
+    "keywords",
     "detail"
   ],
-  "ddl": "CREATE TABLE IF NOT EXISTS raw_evtx (id INTEGER PRIMARY KEY AUTOINCREMENT,task_id TEXT NOT NULL,import_id TEXT NOT NULL,line_no INTEGER NOT NULL,raw TEXT NOT NULL,source_id TEXT NOT NULL,ts INTEGER,host TEXT,eventId INTEGER,level TEXT,user TEXT,srcip TEXT,logonType TEXT,msg TEXT,kind TEXT,text TEXT,event TEXT,image TEXT,cmdline TEXT,target TEXT,parent TEXT,sid TEXT,detail TEXT);"
+  "ddl": "CREATE TABLE IF NOT EXISTS raw_evtx (id INTEGER PRIMARY KEY AUTOINCREMENT,task_id TEXT NOT NULL,import_id TEXT NOT NULL,line_no INTEGER NOT NULL,raw TEXT NOT NULL,source_id TEXT NOT NULL,ts INTEGER,host TEXT,eventId INTEGER,level TEXT,user TEXT,srcip TEXT,logonType TEXT,msg TEXT,kind TEXT,text TEXT,event TEXT,image TEXT,cmdline TEXT,target TEXT,parent TEXT,sid TEXT,recordId TEXT,activityId TEXT,processId TEXT,threadId TEXT,keywords TEXT,detail TEXT);"
 }
