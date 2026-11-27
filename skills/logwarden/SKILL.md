@@ -21,7 +21,7 @@ LogWarden 是一个只监听 `127.0.0.1` 的本地日志排查服务。界面是
 
 ```bash
 curl -s --noproxy '*' http://127.0.0.1:8766/api/health
-# {"ok":true,"app":"logwarden","engine":"duckdb","version":"0.9.1","storage":"...","tasks":0}
+# {"ok":true,"app":"logwarden","engine":"duckdb","version":"0.9.2","storage":"...","tasks":0}
 ```
 
 - 默认端口 **8766**（可用 `LOGVIEW_PORT` 改）；调试端口 9223（CDP）

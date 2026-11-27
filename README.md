@@ -100,8 +100,8 @@
 
 | 文件 | 用法 |
 |---|---|
-| `logwarden-0.9.1-portable-win64.zip`（34.6 MB） | 解压到任意目录，双击 **`logwarden.exe`**；同目录的 `_internal\` 是运行库，别删 |
-| `LogWarden-0.9.1.exe`（单文件，34.6 MB） | 放哪都能双击；首次启动解包到临时目录，慢 1–2 秒 |
+| `logwarden-0.9.2-portable-win64.zip`（34.6 MB） | 解压到任意目录，双击 **`logwarden.exe`**；同目录的 `_internal\` 是运行库，别删 |
+| `LogWarden-0.9.2.exe`（单文件，34.6 MB） | 放哪都能双击；首次启动解包到临时目录，慢 1–2 秒 |
 
 - 目标机**不需要装 Python，也不需要联网**（duckdb、fastapi、paramiko、smbprotocol、evtx 全在包里）；
 - 数据全部落在 **exe 同目录**：`data-duck\`（任务库）、`meta.duckdb`、`rules\custom\`（自己写的规则）、`sources\`（自定义日志源）、`formats\`（日志模板）、`runtime\`（日志与浏览器 profile）。**升级只替换 exe，数据不动**；

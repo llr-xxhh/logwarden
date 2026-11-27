@@ -154,6 +154,9 @@ tbody td.copied{background:#ccfbf1!important}
 /* 事件 ID 单元格：数字在上、中文注释在下 */
 .evt i{display:block;font-style:normal;font-family:-apple-system,"Segoe UI","Microsoft YaHei",system-ui,sans-serif;font-size:10.5px;font-weight:500;color:var(--muted);line-height:1.35;margin-top:1px;white-space:nowrap;letter-spacing:0;overflow:hidden;text-overflow:ellipsis;max-width:100%}
 .thw{display:flex;align-items:center;gap:5px}
+/* 漏斗按钮贴到单元格右缘：否则它正好压在表头几何中心，点「列头」会变成开筛选面板 */
+.thw>span{flex:1 1 auto;min-width:0;overflow:hidden;text-overflow:ellipsis}
+.thw>.fbtn{margin-left:auto}
 .fbtn{width:22px;height:22px;padding:0;border:none;background:transparent;border-radius:5px;cursor:pointer;display:flex;align-items:center;justify-content:center;flex:none;transition:background .12s}
 .fbtn svg{width:14px;height:14px;stroke:var(--pri);fill:none;stroke-width:1.6}
 .fbtn:hover{background:#cffaf0}
@@ -784,7 +787,7 @@ tbody tr.clk{cursor:pointer}
     <div class="sec">任务</div>
     <div class="task on" id="taskCurrent" style="display:none"><div class="t1" id="taskCurName">—</div><div class="t2" id="taskCurMeta">—</div></div>
   </div>
-  <div class="side-foot"><span>DuckDB · 本地</span><span>v0.9.1</span></div>
+  <div class="side-foot"><span>DuckDB · 本地</span><span>v0.9.2</span></div>
 </aside>
 
 <main>
