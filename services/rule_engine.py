@@ -367,14 +367,9 @@ def _sql_fail_then_success(conn, table: str, task_id: str, source_id: str,
     fail_sql, fail_p = match_sql(fail_match)
     succ_sql, succ_p = match_sql(success_match)
     g = s_ident(group_by)
-    user_col = ", " + s_ident("user") if same_user and "user" in fields else ""
-    partition = "gk" + (", usr" if user_col else "")
-    params: list[Any] = [task_id, source_id]
-    params.extend(fail_p)
-    params.extend(succ_p)
-    if same_user and user_col:
-        params.extend(fail_p)
-        params.extend(succ_p)
+    # 同账号维度：SELECT 里必须写成 "user" AS usr，拼接错一个字符整条 SQL 就是语法错误
+    user_expr = ", " + s_ident("user") + " AS usr" if same_user and "user" in fields else ""
+    partition = "gk, usr" if user_expr else "gk"
     sql = (
         "WITH ev AS (SELECT %s AS gk%s, ts,"
         " CASE WHEN %s THEN 'fail' WHEN %s THEN 'success' END AS result"
@@ -384,13 +379,12 @@ def _sql_fail_then_success(conn, table: str, task_id: str, source_id: str,
         " OVER (PARTITION BY %s ORDER BY ts RANGE BETWEEN %d PRECEDING AND 1 PRECEDING) AS fails"
         " FROM ev WHERE result IS NOT NULL)"
         " SELECT gk%s, ts, fails FROM w WHERE result='success' AND fails>=%d"
-    ) % (g, user_col.replace(", ", " AS usr, ") if user_col else "",
-         fail_sql, succ_sql, s_ident(table), fail_sql, succ_sql,
-         (", usr" if user_col else ""), partition, window_ms,
-         (", usr" if user_col else ""), minimum)
-    # 参数顺序：CTE ev 的 WHERE 里 fail_sql 和 succ_sql 各出现一次（OR 两侧），
-    # 但 CASE WHEN 里又各出现一次 → 总共 fail_p×2 + succ_p×2
-    params = [task_id, source_id] + fail_p + succ_p + fail_p + succ_p
+    ) % (g, user_expr, fail_sql, succ_sql, s_ident(table), fail_sql, succ_sql,
+         ", usr" if user_expr else "", partition, window_ms,
+         ", usr" if user_expr else "", minimum)
+    # 参数顺序按 SQL 里 ? 出现的顺序：CASE 的 fail/succ → task_id/source_id → OR 两侧的 fail/succ。
+    # 顺序写错不会报错，只会静默返回 0 条（曾经就是这样，两条内置关联规则从此不告警）
+    params = list(fail_p) + list(succ_p) + [task_id, source_id] + list(fail_p) + list(succ_p)
     rows = conn.execute(sql, params).fetchall()
     hits: list[dict[str, Any]] = []
     for r in rows:
@@ -767,7 +761,13 @@ class RuleEngine:
         active = [r for r in self.rules.load() if r.get("enabled", True) and self.rules.applies(r, kind)]
         output = [{"rule": r, "count": 0, "hits": []} for r in active]
         config = self.queries.config_for(source_id)
-        fields = config["fields"]
+        # 配置声明的列 + 任务库里的真实列：模板补出来的列（自定义 log_format 多出来的
+        # 变量）也要能参与规则匹配，而 ext/source_id 这类内部列要保持可选
+        try:
+            actual = [c["name"] for c in self.queries.schema_for(task_id, source_id)[1]]
+        except Exception:
+            actual = []
+        fields = list(dict.fromkeys(list(config["fields"]) + actual)) or list(config["fields"])
 
         def record(item: dict[str, Any], row: dict[str, Any]) -> None:
             item["count"] += 1
@@ -853,7 +853,6 @@ class RuleEngine:
                         record(item, row)
         # 聚合规则：优先 SQL 下推（窗口函数），翻译失败才回退 Python 逐行。
         # SQL 路径消除 candidates 无界驻留（原 10M 行 → 6.4 GB），且快 20-40×。
-        from services.sql_rules import Unsupported as _Unsupported
         fallback_aggs: list[tuple[dict[str, Any], dict[str, Any]]] = []
         for item in agg_items:
             rule = item["rule"]
@@ -862,12 +861,19 @@ class RuleEngine:
             agg = (rule.get("match") or {}).get("agg") or {}
             agg_type = agg.get("type")
             try:
-                if agg_type == "window_count":
-                    hits = _sql_window_count(conn, config["table"], task_id, source_id, rule, fields)
-                elif agg_type == "fail_then_success":
-                    hits = _sql_fail_then_success(conn, config["table"], task_id, source_id, rule, fields)
-                elif agg_type == "auth_fail_burst":
-                    hits = _sql_auth_fail_burst(conn, config["table"], task_id, source_id, rule, fields)
+                if agg_type in ("window_count", "fail_then_success", "auth_fail_burst"):
+                    # 聚合 SQL 自己拿一次连接：不能借用上面行规则那把（可能没建、
+                    # 也可能已经 close 掉引用计数，随时会被连接池淘汰）
+                    agg_conn = self.store.task_connection(task_id)
+                    try:
+                        if agg_type == "window_count":
+                            hits = _sql_window_count(agg_conn, config["table"], task_id, source_id, rule, fields)
+                        elif agg_type == "fail_then_success":
+                            hits = _sql_fail_then_success(agg_conn, config["table"], task_id, source_id, rule, fields)
+                        else:
+                            hits = _sql_auth_fail_burst(agg_conn, config["table"], task_id, source_id, rule, fields)
+                    finally:
+                        agg_conn.close()
                 elif agg_type == "ip_burst" and "ip" in fields:
                     hits = [{"ts": h["start"], "ip": h["key"], "raw": "窗口峰值 %d 次 / %d 个路径" % (h["cnt"], h["paths"])}
                             for h in self.store.frequency(task_id, config["table"], source_id, "ip", fields, int(agg.get("window_sec", 60)) * 1000)
@@ -884,7 +890,7 @@ class RuleEngine:
                         if len(item["hits"]) < 100:
                             item["hits"].append(hit)
                     continue  # SQL 成功，不需要 fallback
-            except (_Unsupported, Exception):
+            except Exception:
                 pass  # 翻译失败或 SQL 执行出错，回退 Python
             if agg_type in ("window_count", "fail_then_success"):
                 fallback_aggs.append((item, agg))

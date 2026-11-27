@@ -22,7 +22,7 @@ queries = QueryService(store)
 importer = Importer(store, queries)
 rule_store = RuleStore()
 engine = RuleEngine(store, queries, rule_store)
-app = FastAPI(title="LogWarden", version="0.9", docs_url="/api/docs", redoc_url=None)
+app = FastAPI(title="LogWarden", version="0.9.1", docs_url="/api/docs", redoc_url=None)
 
 
 @app.middleware("http")

@@ -96,16 +96,17 @@
 
 ### 方式一：便携版（Windows，目标机零依赖）
 
-把 [`Releases`](../../releases/latest) 里的 **`logwarden-0.8.0-portable-win64.zip`**（40.8 MB）解压到任意目录，双击 **`启动.vbs`**，浏览器自动打开。
+把 [`Releases`](../../releases/latest) 里的安装包下载下来，二选一：
 
-同版本还提供 `.tar.gz`（40.0 MB，体积只小 2%，但 Windows 解压需要 7-Zip / WinRAR，所以默认推荐 zip）。
+| 文件 | 用法 |
+|---|---|
+| `logwarden-0.9.1-portable-win64.zip`（34.6 MB） | 解压到任意目录，双击 **`logwarden.exe`**；同目录的 `_internal\` 是运行库，别删 |
+| `LogWarden-0.9.1.exe`（单文件，34.6 MB） | 放哪都能双击；首次启动解包到临时目录，慢 1–2 秒 |
 
-- `runtime\python\` 里是嵌入式 Python 3.11.9 + 全部依赖（duckdb、fastapi、paramiko、smbprotocol），**目标机不需要装 Python，也不需要联网**；
-- 停止服务双击 `停止.vbs`；
-- 整个目录可以直接拷到 U 盘或另一台 Windows 机器，路径变了也能跑；
-- 首次启动约 3–5 秒（杀软扫描 + DLL 首次加载），之后 1–2 秒。
-
-启动器按 **`runtime\python` → `.venv` → 系统 Python** 三级回退找解释器，任何一级坏掉都会自动往下一级走，不会卡住。
+- 目标机**不需要装 Python，也不需要联网**（duckdb、fastapi、paramiko、smbprotocol、evtx 全在包里）；
+- 数据全部落在 **exe 同目录**：`data-duck\`（任务库）、`meta.duckdb`、`rules\custom\`（自己写的规则）、`sources\`（自定义日志源）、`formats\`（日志模板）、`runtime\`（日志与浏览器 profile）。**升级只替换 exe，数据不动**；
+- 想换数据目录：设环境变量 `LOGVIEW_DATA_DIR` 指向别处；
+- 首次启动约 3–5 秒（杀软扫描 + DLL 首次加载），之后 1–2 秒；**关浏览器只是关界面**，服务随 `logwarden.exe` 进程存在——要停就在任务管理器里结束它。
 
 ### 方式二：源码运行
 
@@ -468,7 +469,7 @@ logwarden/
 │   ├── web_format.py    nginx log_format / 自定义正则编译
 │   └── custom_sources.py 自定义日志源
 ├── static/              前端（index.html + live.js，无构建链）
-├── tests/               8 个测试文件，168 组用例
+├── tests/               12 个测试文件，186 组用例
 ├── docs/                架构图与界面截图
 ├── sample-data/         演练日志（nginx / auth / Windows 事件，可直接跑通全流程）
 ├── skills/logwarden/    给 AI agent 的操作手册（API、模板、规则、常见坑）
@@ -485,7 +486,7 @@ logwarden/
 
 不依赖 pytest，`unittest` 直接跑。
 
-- **168 组用例**：解析器回归（含真实 Windows 日志样本）、规则命中样本（每条规则都有）、规则下推与 Python 判断的一致性对照、远程拉取端到端（本地 HTTP 全链路）、ConcatStream 拼接/取消/跳过、连接池引用计数、非 ID 列排序翻页（含 NULL 行）；
+- **186 组用例**：解析器回归（含真实 Windows 日志样本）、规则命中样本（每条规则都有）、规则下推与 Python 判断的一致性对照、远程拉取端到端（本地 HTTP 全链路）、ConcatStream 拼接/取消/跳过、连接池引用计数、非 ID 列排序翻页（含 NULL 行）；
 - **一致性对拍**：同一批日志分别走 DuckDB 版与 SQLite 版，逐项比对行数、时间范围、独立值、IP 排行、频次判定、基线、告警命中、列名与类型——结果完全一致。
 
 ## 13. 已知短板

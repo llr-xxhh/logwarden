@@ -297,6 +297,65 @@ except ImportError:  # 没装 duckdb 时整组跳过（SQLite 版没有这个依
 
 
 @unittest.skipIf(duckdb is None, "需要 duckdb")
+class AggregateSqlTest(unittest.TestCase):
+    """聚合规则下推：参数顺序错一位不会抛错，只会静默返回 0 条。
+
+    内置的 auth_fail_then_success / win_fail_then_success 都走这条路径，
+    所以必须和 Python 实现逐条对齐，否则爆破成功也报不出来。
+    """
+
+    FIELDS = ["ts", "srcip", "result", "user"]
+    ROWS = (
+        [{"id": i + 1, "ts": 1000 * (i + 1), "srcip": "1.2.3.4", "user": "root", "result": "失败"} for i in range(6)]
+        + [{"id": 7, "ts": 7000, "srcip": "1.2.3.4", "user": "root", "result": "成功"}]
+        + [{"id": 8 + i, "ts": 1000 * (i + 1), "srcip": "9.9.9.9", "user": "ops", "result": "失败"} for i in range(3)]
+        + [{"id": 11, "ts": 4000, "srcip": "9.9.9.9", "user": "ops", "result": "成功"}]
+    )
+
+    @classmethod
+    def setUpClass(cls):
+        import threading
+
+        from storage import Conn
+
+        cls.raw = duckdb.connect()
+        cls.raw.execute(
+            'CREATE TABLE raw_syslog (task_id VARCHAR, source_id VARCHAR, id BIGINT, '
+            'ts BIGINT, srcip VARCHAR, result VARCHAR, "user" VARCHAR)')
+        cls.raw.executemany(
+            'INSERT INTO raw_syslog VALUES (\'t1\',\'s1\',?,?,?,?,?)',
+            [(r["id"], r["ts"], r["srcip"], r["result"], r["user"]) for r in cls.ROWS])
+        cls.conn = Conn(cls.raw, threading.RLock())
+
+    @classmethod
+    def tearDownClass(cls):
+        cls.raw.close()
+
+    @staticmethod
+    def _rule(same_user: bool = False) -> dict:
+        return {
+            "id": "r", "name": "r", "severity": "high", "kind": "aggregate", "scope": "auth",
+            "match": {"agg": {
+                "type": "fail_then_success", "group_by": "srcip", "window_sec": 600,
+                "min_failures": 5, "same_user": same_user,
+                "fail": {"result": {"eq": "失败"}}, "success": {"result": {"eq": "成功"}},
+            }},
+        }
+
+    def test_fail_then_success_matches_python(self):
+        from services.rule_engine import _sql_fail_then_success
+
+        for same_user in (False, True):
+            rule = self._rule(same_user)
+            sql_hits = _sql_fail_then_success(self.conn, "raw_syslog", "t1", "s1", rule, self.FIELDS)
+            py_hits = aggregate_fail_then_success(self.ROWS, rule)
+            self.assertEqual(len(sql_hits), len(py_hits), (same_user, sql_hits, py_hits))
+            self.assertEqual(len(sql_hits), 1, "只有 1.2.3.4 达到 5 次失败的门槛")
+            self.assertEqual(sql_hits[0]["srcip"], "1.2.3.4")
+            self.assertEqual(sql_hits[0]["failure_count"], 6)
+
+
+@unittest.skipIf(duckdb is None, "需要 duckdb")
 class SqlRulesTest(unittest.TestCase):
     """规则下推：翻译出的 SQL 必须与 Python matches() 逐行判断给出相同计数。
 

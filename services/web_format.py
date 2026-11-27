@@ -259,9 +259,20 @@ def _epoch_ms(text: str, time_format: str | None = None) -> int | None:
         if not fmt:
             continue
         try:
-            return int(datetime.strptime(raw, fmt).timestamp() * 1000)
+            dt = datetime.strptime(raw, fmt)
         except ValueError:
             continue
+        if dt.year == 1900:
+            # "%b %d %H:%M:%S" 这类格式没有年份，strptime 会填 1900，
+            # 直接落库会变成 1900 年的时间戳。按今年算，落在未来一天以外算去年
+            now = datetime.now()
+            try:
+                dt = dt.replace(year=now.year)
+                if (dt - now).total_seconds() > 86400:
+                    dt = dt.replace(year=now.year - 1)
+            except ValueError:
+                pass
+        return int(dt.timestamp() * 1000)
     try:                       # 纯数字按秒或毫秒
         number = float(raw)
         return int(number * 1000) if number < 1e11 else int(number)
@@ -655,7 +666,11 @@ def save_format(spec: Any, format_id: str | None = None, source_ids: list[str] |
     name = str(spec.get("name") or "").strip()
     if not name:
         raise ValueError("name 不能为空")
-    source_ids = list(dict.fromkeys(str(s) for s in (spec.get("source_ids") or []) if s))
+    raw_ids = spec.get("source_ids") or []
+    if not isinstance(raw_ids, (list, tuple)):
+        # 传成字符串会被逐个字符当成源 id，绑定关系静默写坏
+        raise ValueError("source_ids 必须是数组")
+    source_ids = list(dict.fromkeys(str(s).strip() for s in raw_ids if str(s).strip()))
     if not source_ids:
         raise ValueError("source_ids 不能为空，至少绑一个日志源")
 

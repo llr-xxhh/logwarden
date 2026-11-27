@@ -257,9 +257,16 @@
     }
     var colf={};
     for(var ck in state.colf){
+      /* flags 是「规则命中」算出来的虚拟列，库里没有这一列，下推后端只会 400 */
+      if(ck==='flags')continue;
       var f=state.colf[ck];if(!cfActive(f))continue;
       var c={};
-      if(ck==='ts'){if(f.from)c.from=parseTimeInput(f.from);if(f.to)c.to=parseTimeInput(f.to)}
+      if(ck==='ts'){
+        var tf=f.from?parseTimeInput(f.from):null,tt=f.to?parseTimeInput(f.to):null;
+        /* 只填时分（09:00）→ 按「当日秒数」比较，跨天日志每天都算；带日期 → 绝对毫秒 */
+        if(tf){if(tf.tod!=null)c.fromTod=tf.tod;else c.from=tf.abs}
+        if(tt){if(tt.tod!=null)c.toTod=tt.tod;else c.to=tt.abs}
+      }
       else{if(f.vals)c.vals=f.vals;if(f.q&&f.q.trim())c.q=f.q.trim()}
       if(Object.keys(c).length)colf[ck]=c;
     }
@@ -561,7 +568,7 @@
       title:'删除任务',sub:isCurrent?'当前任务':'',
       body:'<div class="dlg-name">'+esc(task?task.name:taskId)+'</div>'
         +'<div class="dlg-meta">'+(st.total||0).toLocaleString()+' 条日志 · '+(st.sources||0)+' 份日志源'+(task&&task.created_at?' · 创建于 '+esc(fmtTime(task.created_at)):'')+'</div>'
-        +'<div class="dlg-note"><b>仅移出列表</b>：左侧不再显示，data/ 下的数据文件保留，可手工恢复。<br><b>永久删除</b>：连同 task_*.db 一起删除，<span class="warn">该任务的全部日志不可恢复</span>。</div>',
+        +'<div class="dlg-note"><b>仅移出列表</b>：左侧不再显示，data-duck/ 下的数据文件保留，可手工恢复。<br><b>永久删除</b>：连同 data-duck/task_*.duckdb 一起删除，<span class="warn">该任务的全部日志不可恢复</span>。</div>',
       buttons:[
         {label:'取消'},
         {label:'仅移出列表',act:function(){return removeTask(taskId,false)}},
@@ -1388,7 +1395,7 @@
       box.style.display=archivedOpen?'':'none';
       if(!archivedOpen)return;
       box.innerHTML=items.map(function(t){
-        return '<div class="imp-row"><div class="imp-main"><div style="font-size:12.8px;font-weight:600">'+esc(t.name)+'</div><div style="font-size:11.5px;color:var(--muted);margin-top:3px">移出于 '+esc(fmtTime(t.updated_at))+' · 数据文件仍在 data/ 下</div></div><button class="btn sm" data-restore="'+esc(t.id)+'">恢复</button></div>';
+        return '<div class="imp-row"><div class="imp-main"><div style="font-size:12.8px;font-weight:600">'+esc(t.name)+'</div><div style="font-size:11.5px;color:var(--muted);margin-top:3px">移出于 '+esc(fmtTime(t.updated_at))+' · 数据文件仍在 data-duck/ 下</div></div><button class="btn sm" data-restore="'+esc(t.id)+'">恢复</button></div>';
       }).join('')||'<div class="imp-row" style="color:var(--faint)">没有已归档的任务</div>';
     }).catch(function(e){toast(e.message)});
   }
@@ -2043,6 +2050,9 @@
     loadArchived(false);
   }).then(function(){
     var id=localStorage.getItem('logview.current.task'),exists=false;BOOT.tasks.forEach(function(t){if(t.id===id)exists=true});
+    /* 文档写的 /#<task_id> 直达：hash 优先于「上次打开的任务」，AI 操盘靠它定位 */
+    var hm=/^#([A-Za-z0-9_-]{3,40})$/.exec(location.hash||'');
+    if(hm&&BOOT.tasks.some(function(t){return t.id===hm[1]})){id=hm[1];exists=true}
     if(!exists)id=BOOT.tasks.length?BOOT.tasks[0].id:null;
     if(id)return loadTask(id);
     localStorage.removeItem('logview.current.task');openTaskModal();

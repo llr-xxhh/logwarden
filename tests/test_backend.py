@@ -182,6 +182,34 @@ class BackendTest(unittest.TestCase):
         self.rules.save(relaxed)
         self.assertGreater(hits(), 0, "阈值放宽回 20% 后应恢复命中")
 
+    def test_colf_time_of_day_and_empty_values(self):
+        """时间筛选两种口径都要能用；「全不选」必须是 0 条而不是不筛；虚拟列要明确拒绝。"""
+        import time as _time
+
+        self.importer.import_text(self.task_id, "nginx_access", "combined", WEB)
+        rows = self.queries.query(self.task_id, "nginx_access", {"size": 100})["rows"]
+        self.assertEqual(len(rows), 3)
+
+        def clock(ms):
+            return int((ms // 1000 + (_time.localtime().tm_gmtoff or 0)) % 86400)
+
+        first, last = min(clock(r["ts"]) for r in rows), max(clock(r["ts"]) for r in rows)
+        # 09:00 → 09:02 覆盖全部三行
+        cover = self.queries.query(self.task_id, "nginx_access", {"colf": {"ts": {"fromTod": first, "toTod": last}}})
+        self.assertEqual(cover["total"], 3)
+        # 跨零点写法（>= last 或 <= first）只留首尾两行，中间那行被排除
+        wrap = self.queries.query(self.task_id, "nginx_access", {"colf": {"ts": {"fromTod": last, "toTod": first}}})
+        self.assertEqual(wrap["total"], 2)
+        # 绝对时间口径（带日期）
+        absolute = self.queries.query(self.task_id, "nginx_access", {"colf": {"ts": {"from": rows[0]["ts"] - 1, "to": rows[-1]["ts"] + 1}}})
+        self.assertEqual(absolute["total"], 3)
+        # 全不选 = 一条都不要
+        empty = self.queries.query(self.task_id, "nginx_access", {"colf": {"ip": {"vals": []}}})
+        self.assertEqual(empty["total"], 0)
+        # 标记列是前端算出来的虚拟列，不能悄悄忽略，也不能 500
+        with self.assertRaises(ValueError):
+            self.queries.query(self.task_id, "nginx_access", {"colf": {"flags": {"vals": ["扫描器"]}}})
+
     def test_old_task_db_is_migrated_for_new_columns(self):
         """v1 旧库没有 xff/host/ext，打开时要自动补列，不能要求用户重导数据。"""
         self.importer.import_text(self.task_id, "nginx_access", "combined", WEB)   # 先让 raw 表存在

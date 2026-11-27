@@ -330,6 +330,10 @@ class RemoteFS:
         """单个文件的 {path,size,mtime}。指向目录时抛 PullError。"""
         raise NotImplementedError
 
+    def ping(self) -> None:
+        """确认服务在线（连通性测试用）。SSH/SMB 在构造函数里已经连过，无需实现。"""
+        return None
+
     def listdir(self, dirpath: str) -> tuple[str, list[dict[str, Any]]]:
         """浏览一层目录：返回 (实际浏览的目录, 条目列表)。
 
@@ -854,7 +858,7 @@ class _HttpFS(RemoteFS):
         return base, out
 
     def open_raw(self, path: str) -> BinaryIO:
-        # 始终带 Range：服务端支持就流式吐，不支持也会回 200 整份，urllib 一样能读。
+        # 直接流式 GET：urllib 返回的响应对象支持逐块 read，不会把整份文件读进内存。
         # path 可能是 URL 路径部分（目录浏览传来的），统一按初始 URL 归一成绝对 URL；
         # 不能固定 GET 初始 URL，否则会把目录页本身当日志拉进来
         return self._request("GET", url=urllib.parse.urljoin(self.url, path)
@@ -866,6 +870,20 @@ class _HttpFS(RemoteFS):
             head = resp.read(size) or b""
         data = decode_sample(head)
         return {"data": data, "raw_len": len(head), "compressed": data is not head}
+
+    def ping(self) -> None:
+        """真发一次请求：只解析 URL 不碰网络，服务器没起也会报「已连通」。
+
+        4xx/5xx 也算连通（服务在，只是路径或权限不对）；连不上才抛错。
+        """
+        req = urllib.request.Request(self.url, method="HEAD", headers=self._headers)
+        try:
+            self._opener.open(req, timeout=CONNECT_TIMEOUT).close()
+        except urllib.error.HTTPError:
+            return
+        except urllib.error.URLError as exc:
+            raise PullError("连不上 %s（%s）——检查主机端口对不对，目标服务有没有在跑"
+                            % (_disp_url(self.url), exc.reason)) from exc
 
     def close(self) -> None:
         pass
@@ -1137,6 +1155,8 @@ def probe(data: dict[str, Any]) -> dict[str, Any]:
     started = time.time()
     fs = open_fs(spec)
     try:
+        # HTTP 的「连接」在构造函数里只是拼 URL，不真正发请求——这里补一次
+        fs.ping()
         if spec["auth"] != "none":
             remember_auth(spec)
         return {

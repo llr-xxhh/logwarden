@@ -853,16 +853,53 @@ class Store:
                 if value not in (None, ""):
                     add(key, "CAST({c} AS TEXT)=?", [str(value)])
             for key, cond in (options.get("colf") or {}).items():
+                if not isinstance(cond, dict):
+                    raise ValueError("colf.%s 必须是对象" % key)
+                if key not in allowed:
+                    raise ValueError("未知筛选字段: " + key)
                 if key == "ts":
-                    if cond.get("from") is not None:
-                        add(key, "{c}>=?", [int(cond["from"])])
-                    if cond.get("to") is not None:
-                        add(key, "{c}<=?", [int(cond["to"])])
+                    for bound, expr in (("from", "{c}>=?"), ("to", "{c}<=?")):
+                        if cond.get(bound) is None:
+                            continue
+                        try:
+                            value = int(cond[bound])
+                        except (TypeError, ValueError):
+                            raise ValueError("colf.ts.%s 必须是毫秒时间戳；只想按时分筛选请用 fromTod/toTod（当日秒数）" % bound)
+                        add(key, expr, [value])
+                    # 前端「按时间点」填的 09:00 → 10:00 是本地时钟口径（跨天日志每天都算），
+                    # 不换算成绝对时间：用「当日秒数」比较，支持 22:00 → 02:00 的跨零点区间
+                    tod_from, tod_to = cond.get("fromTod"), cond.get("toTod")
+                    if tod_from is not None or tod_to is not None:
+                        gmtoff = int(time.localtime().tm_gmtoff or 0)
+                        clock = "(CAST(" + ident(key) + " AS BIGINT)/1000 + " + str(gmtoff) + ") % 86400"
+                        try:
+                            start = None if tod_from is None else int(tod_from)
+                            end = None if tod_to is None else int(tod_to)
+                        except (TypeError, ValueError):
+                            raise ValueError("colf.ts.fromTod / toTod 必须是当日秒数（0-86399）")
+                        if start is not None and end is not None:
+                            if start <= end:
+                                where.append(clock + " BETWEEN ? AND ?")
+                            else:
+                                where.append("(" + clock + ">=? OR " + clock + "<=?)")
+                            params.extend([start, end])
+                        elif start is not None:
+                            where.append(clock + ">=?")
+                            params.append(start)
+                        else:
+                            where.append(clock + "<=?")
+                            params.append(end)
                     continue
-                vals = cond.get("vals") or []
-                if vals:
-                    marks = ",".join("?" for _ in vals)
-                    add(key, "CAST({c} AS TEXT) IN (" + marks + ")", [str(v) for v in vals])
+                if "vals" in cond:
+                    vals = cond.get("vals") or []
+                    if not isinstance(vals, (list, tuple)):
+                        raise ValueError("colf.%s.vals 必须是数组" % key)
+                    if not vals:
+                        # 「全不选」= 一条都不要。当成"没筛"会让界面显示 0 条却返回全部
+                        where.append("FALSE")
+                    else:
+                        marks = ",".join("?" for _ in vals)
+                        add(key, "CAST({c} AS TEXT) IN (" + marks + ")", [str(v) for v in vals])
                 if str(cond.get("q") or "").strip():
                     needle = str(cond["q"]).strip().lower().replace("\\", "\\\\").replace("%", "\\%").replace("_", "\\_")
                     add(key, "LOWER(CAST({c} AS TEXT)) LIKE ? ESCAPE '\\'", ["%" + needle + "%"])

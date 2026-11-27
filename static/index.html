@@ -784,7 +784,7 @@ tbody tr.clk{cursor:pointer}
     <div class="sec">任务</div>
     <div class="task on" id="taskCurrent" style="display:none"><div class="t1" id="taskCurName">—</div><div class="t2" id="taskCurMeta">—</div></div>
   </div>
-  <div class="side-foot"><span>DuckDB · 本地</span><span>v0.9</span></div>
+  <div class="side-foot"><span>DuckDB · 本地</span><span>v0.9.1</span></div>
 </aside>
 
 <main>
@@ -2523,9 +2523,11 @@ function renderTable(){
     var on=cfActive(state.colf[c.k]);
     var sum=cfSummary(c.k);
     var sa=(state.sort&&state.sort.k===c.k)?(state.sort.dir>0?' ↑':' ↓'):'';
-    return '<th data-k="'+c.k+'" title="点击列头排序（升 → 降 → 取消），漏斗按钮打开筛选"><span class="thw"><span>'+c.lb+sa+'</span>'+
-      '<button class="fbtn'+(on?' on':'')+'" data-fk="'+c.k+'" title="'+esc(on?('已筛选：'+sum):('筛选「'+c.lb+'」'))+'">'+
-      '<svg viewBox="0 0 10 10"><path d="M1.1 2.1h7.8L6.1 5.3v3.4L3.9 7.5V5.3z"/></svg></button></span></th>'
+    /* 标记列是规则命中算出来的虚拟列，库里没有这一列：只参与排序，不给筛选漏斗 */
+    var canFilter=c.k!=='flags';
+    var fbtn=canFilter?'<button class="fbtn'+(on?' on':'')+'" data-fk="'+c.k+'" title="'+esc(on?('已筛选：'+sum):('筛选「'+c.lb+'」'))+'">'+
+      '<svg viewBox="0 0 10 10"><path d="M1.1 2.1h7.8L6.1 5.3v3.4L3.9 7.5V5.3z"/></svg></button>':'';
+    return '<th data-k="'+c.k+'" title="'+(canFilter?'点击列头排序（升 → 降 → 取消），漏斗按钮打开筛选':'点击列头排序（升 → 降 → 取消）；标记列由规则命中算出，不能按值筛选')+'"><span class="thw"><span>'+c.lb+sa+'</span>'+fbtn+'</span></th>'
   }).join('');
   document.getElementById('rows').innerHTML=page.map(function(l){
     var cls=l.crit?'crit':((l.flags&&l.flags.length)?'flag':'');
@@ -4355,6 +4357,6 @@ if(location.protocol==='file:'){
   <div class="evi-note">勾选即生效：勾上进入任务清单（可导入），取消后从清单和源列表隐藏；<b>已导入的数据保留</b>，重新勾选即恢复。取消最后一项会被拒绝。</div>
   <div class="evi-body" id="eviDrawerBody"></div>
 </aside>
-<script src="live.js?v=17"></script>
+<script src="live.js?v=18"></script>
 </body>
 </html>

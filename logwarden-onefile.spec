@@ -56,7 +56,7 @@ exe = EXE(
     a.zipfiles,
     a.datas,
     [],
-    name="LogWarden-0.9.0",
+    name="LogWarden-0.9.1",
     console=False,
     disable_windowed_traceback=False,
     upx=False,

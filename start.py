@@ -66,9 +66,14 @@ def notify_error(message: str) -> None:
         pass
 
 
+_LOCAL_OPENER = urllib.request.build_opener(urllib.request.ProxyHandler({}))
+
+
 def healthy(port: int) -> bool:
+    # 必须绕开系统代理：Windows 上 urllib 会读注册表里的 Clash/公司代理，
+    # 127.0.0.1 一旦被代理接管，健康检查就永远失败（表现为重复起服务 / 端口占用）
     try:
-        with urllib.request.urlopen("http://127.0.0.1:%d/api/health" % port, timeout=1) as response:
+        with _LOCAL_OPENER.open("http://127.0.0.1:%d/api/health" % port, timeout=1) as response:
             data = json.loads(response.read().decode("utf-8"))
             return response.status == 200 and data.get("ok") is True and data.get("app") == "logwarden"
     except (OSError, ValueError, UnicodeError):
@@ -163,6 +168,15 @@ def browser_candidates(name: str) -> list[str]:
     return result
 
 
+def _debug_port_alive(port: int) -> bool:
+    """调试端口有没有人在听：用来判断"浏览器立即退出"是不是把 URL 转交给了已开实例。"""
+    try:
+        with _LOCAL_OPENER.open("http://127.0.0.1:%d/json/version" % port, timeout=1) as response:
+            return response.status == 200
+    except (OSError, ValueError, UnicodeError):
+        return False
+
+
 def start_browser(name: str, debug_port: int, url: str) -> tuple[str, str]:
     names = ["chrome", "edge", "firefox"] if name == "auto" else [name]
     tried = []
@@ -204,6 +218,10 @@ def start_browser(name: str, debug_port: int, url: str) -> tuple[str, str]:
             continue
         time.sleep(1.2)
         if process.poll() is None:
+            return candidate, executable
+        if _debug_port_alive(debug_port):
+            # 同一个 profile 已经有浏览器在跑：新进程把 URL 转交给它之后立刻退出，
+            # 这不是失败——双击第二次 exe 时就是这种情况，报错会吓到人
             return candidate, executable
         tried.append(candidate + ": 启动后立即退出")
     if found_any:
