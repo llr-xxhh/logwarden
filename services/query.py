@@ -9,7 +9,7 @@ from storage import Store
 from services.parsing import parser_config
 from services import custom_sources
 
-ROOT = Path(__file__).resolve().parents[1]
+from paths import APP as ROOT
 
 
 class QueryService:

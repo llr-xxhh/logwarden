@@ -8,6 +8,7 @@ from typing import Any
 from fastapi import FastAPI, File, Form, HTTPException, UploadFile
 from fastapi.responses import JSONResponse
 
+from paths import APP
 from static_files import NoCacheStatic
 from storage import Store
 from services import custom_sources, local_logs, remote, web_format
@@ -15,13 +16,13 @@ from services.importer import Importer
 from services.query import QueryService
 from services.rule_engine import RuleEngine, RuleStore
 
-ROOT = Path(__file__).resolve().parent
+ROOT = APP
 store = Store()
 queries = QueryService(store)
 importer = Importer(store, queries)
 rule_store = RuleStore()
 engine = RuleEngine(store, queries, rule_store)
-app = FastAPI(title="LogWarden", version="0.8", docs_url="/api/docs", redoc_url=None)
+app = FastAPI(title="LogWarden", version="0.9", docs_url="/api/docs", redoc_url=None)
 
 
 @app.middleware("http")
@@ -280,6 +281,12 @@ def remote_probe(data: dict[str, Any]) -> dict[str, Any]:
     return remote.probe(data)
 
 
+@app.post("/api/remote/list")
+def remote_list(data: dict[str, Any]) -> dict[str, Any]:
+    """浏览远端目录（同步）：单层清单供勾选拉取。HTTP 需服务器开目录列表。"""
+    return remote.list_dir(data)
+
+
 @app.post("/api/remote/pull", status_code=201)
 def remote_pull(data: dict[str, Any]) -> dict[str, Any]:
     task_id = str(data.get("task_id") or "")
@@ -288,7 +295,9 @@ def remote_pull(data: dict[str, Any]) -> dict[str, Any]:
     source = queries.source(source_id)
     fmt = str(data.get("fmt") or source.get("format") or "text")
     encoding = str(data.get("encoding") or "utf-8")
-    job = remote.start_pull(data, importer, task_id, source_id, fmt, encoding)
+    files = data.get("files")
+    job = remote.start_pull(data, importer, task_id, source_id, fmt, encoding,
+                            file_list=files if isinstance(files, list) else None)
     return job.snapshot()
 
 
@@ -435,9 +444,10 @@ def test_rules(data: dict[str, Any]) -> list[dict[str, Any]]:
 
 
 @app.get("/api/tasks/{task_id}/sources/{source_id}/alerts")
-def alerts(task_id: str, source_id: str) -> dict[str, Any]:
+def alerts(task_id: str, source_id: str, force: bool = False) -> dict[str, Any]:
+    """force=True 跳过缓存重算并覆盖（前端「重新检测」按钮）。"""
     store.get_task(task_id)
-    return engine.alerts(task_id, source_id)
+    return engine.alerts(task_id, source_id, force=force)
 
 
 app.mount("/", NoCacheStatic(directory=str(ROOT / "static"), html=True), name="static")

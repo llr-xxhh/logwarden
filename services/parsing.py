@@ -10,7 +10,9 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
 
-PARSER_DIR = Path(__file__).resolve().parents[1] / "parsers"
+from paths import APP as _APP
+
+PARSER_DIR = _APP / "parsers"
 ALIASES = {"tomcat": "combined", "evtx": "windows_event", "bash_history": "shell", "auditd": "audit"}
 MONTHS = {"Jan": 1, "Feb": 2, "Mar": 3, "Apr": 4, "May": 5, "Jun": 6, "Jul": 7, "Aug": 8, "Sep": 9, "Oct": 10, "Nov": 11, "Dec": 12}
 COMBINED_RE = re.compile(

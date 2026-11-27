@@ -27,7 +27,9 @@ from typing import Any, Iterable
 
 import duckdb
 
-BASE_DIR = Path(__file__).resolve().parent
+from paths import DATA as _PKG_DATA
+
+BASE_DIR = _PKG_DATA
 DATA_DIR = Path(os.environ.get("LOGVIEW_DATA_DIR", BASE_DIR)).resolve()
 ID_RE = re.compile(r"^[A-Za-z0-9_-]+$")
 IDENT_RE = re.compile(r"^[A-Za-z_][A-Za-z0-9_]*$")

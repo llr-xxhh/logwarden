@@ -15,6 +15,7 @@ from __future__ import annotations
 import base64
 import fnmatch
 import gzip
+import html as htmlmod
 import io
 import ntpath
 import posixpath
@@ -74,8 +75,13 @@ def _port(value: Any, protocol: str) -> int:
     return port or DEFAULT_PORTS.get(protocol, 0)
 
 
-def normalize(data: dict[str, Any]) -> dict[str, Any]:
-    """把前端提交的表单整理成内部 spec，顺手做校验。"""
+def normalize(data: dict[str, Any], path_optional: bool = False) -> dict[str, Any]:
+    """把前端提交的表单整理成内部 spec，顺手做校验。
+
+    path_optional=True 时路径留空自动落到各协议的根（HTTP `/`、SSH `/`、
+    SMB 共享列表），配合"测试连通只管连通"——连不连得上与有没有文件无关。
+    拉取（path_optional=False）仍要求明确路径或勾选文件清单。
+    """
     if not isinstance(data, dict):
         raise ValueError("请求体必须是对象")
     protocol = str(data.get("protocol") or "ssh").strip().lower()
@@ -96,9 +102,19 @@ def normalize(data: dict[str, Any]) -> dict[str, Any]:
     key_text = str(data.get("key_text") or "")
     key_path = str(data.get("key_path") or "").strip()
 
+    if protocol != "http" and "://" in host:
+        # SSH/SMB 主机不该带 scheme；从别的协议粘贴 URL 是高频误操作，自动剥掉省一次报错
+        scheme, rest = host.split("://", 1)
+        host = rest.split("/", 1)[0].strip()
+        if not host:
+            raise ValueError("主机地址只填 IP 或主机名，不要带 %s:// 前缀" % scheme)
+
     if protocol == "http":
         if not path:
-            raise ValueError("请填写远端路径（URL 路径部分）")
+            if path_optional:
+                path = "/"
+            else:
+                raise ValueError("请填写远端路径（URL 路径部分）")
         raw_port = _int_or_zero(data.get("port"))
         url = _http_url(host, path, raw_port, data.get("tls"))
         port = raw_port or (443 if url.startswith("https://") else 80)
@@ -108,15 +124,17 @@ def normalize(data: dict[str, Any]) -> dict[str, Any]:
         return spec
 
     if not path:
-        raise ValueError("请填写远端路径")
+        if path_optional:
+            path = "/" if protocol == "ssh" else "\\\\" + host
+        else:
+            raise ValueError("请填写远端路径")
     # SMB 路径格式不用等连上才知道错，先挡一道，省一次 12 秒超时
     if protocol == "smb":
         try:
             smb_unc(host, path)
         except PullError as exc:
             raise ValueError(str(exc)) from exc
-    if auth == "password" and not password:
-        raise ValueError("密码认证需要填写密码")
+    # 密码允许留空：内网主机可能有无密码账号或允许匿名共享，放行让真实连接结果说话
     if auth == "key" and not (key_text or key_path):
         raise ValueError("密钥认证需要选择密钥文件或粘贴私钥")
     if auth == "session":
@@ -134,7 +152,8 @@ def normalize(data: dict[str, Any]) -> dict[str, Any]:
         key_path = cached.get("key_path") or key_path
         username = username or cached.get("username") or ""
 
-    if not username:
+    # SMB 账号密码全空 = 匿名/guest 会话，合法场景放行；SSH 空用户名无意义保持拦截
+    if not username and not (protocol == "smb" and auth == "password" and not password):
         raise ValueError("请填写用户名")
 
     return {
@@ -157,6 +176,17 @@ def _int_or_zero(value: Any) -> int:
         return max(0, int(value or 0))
     except (TypeError, ValueError):
         return 0
+
+
+def _disp_url(url: str) -> str:
+    """报错展示用：默认端口也显式带上（http://x/ → http://x:80/），用户能看出端口。"""
+    parts = urllib.parse.urlsplit(url)
+    if ":" in parts.netloc.rsplit("]", 1)[-1]:
+        return url
+    default = "443" if parts.scheme == "https" else "80"
+    return urllib.parse.urlunsplit((
+        parts.scheme, "%s:%s" % (parts.netloc, default),
+        parts.path, parts.query, parts.fragment))
 
 
 def _http_url(host: str, path: str, port: int, tls: Any) -> str:
@@ -278,6 +308,10 @@ def _has_glob(pattern: str) -> bool:
     return bool(re.search(r"[*?\[]", pattern))
 
 
+# stat_file 报目录时的标记词。expand 捕获后按"目录展开"处理，判定靠这个词
+_IS_DIR_MARK = "是目录"
+
+
 # --- 文件系统抽象 -----------------------------------------------------------
 
 class RemoteFS:
@@ -290,6 +324,19 @@ class RemoteFS:
         pass
 
     def expand(self, pattern: str) -> list[dict[str, Any]]:
+        raise NotImplementedError
+
+    def stat_file(self, path: str) -> dict[str, Any]:
+        """单个文件的 {path,size,mtime}。指向目录时抛 PullError。"""
+        raise NotImplementedError
+
+    def listdir(self, dirpath: str) -> tuple[str, list[dict[str, Any]]]:
+        """浏览一层目录：返回 (实际浏览的目录, 条目列表)。
+
+        条目 = {name, path, size, mtime, is_dir}；path 用「用户填写形式」的路径
+        （HTTP 为完整 URL），可以直接回传给 open() 或下一层 listdir()。
+        dirpath 指到文件上时回退到父目录（返回值体现真实目录）。
+        """
         raise NotImplementedError
 
     def open_raw(self, path: str) -> BinaryIO:
@@ -419,38 +466,85 @@ class _SftpFS(RemoteFS):
 
     def expand(self, pattern: str) -> list[dict[str, Any]]:
         if not _has_glob(pattern):
-            return [self._one(pattern)]
-        dirname = posixpath.dirname(pattern) or "."
-        base = posixpath.basename(pattern)
-        try:
-            entries = self._sftp.listdir_attr(dirname)
-        except IOError as exc:
-            raise PullError("列目录失败 %s：%s" % (dirname, exc)) from exc
-        out = []
-        for item in entries:
-            if not fnmatch.fnmatch(item.filename, base):
-                continue
-            if item.st_mode is not None and statmod.S_ISDIR(item.st_mode):
-                continue
-            out.append({
-                "path": posixpath.join(dirname, item.filename),
-                "size": int(item.st_size or 0),
-                "mtime": int(item.st_mtime or 0),
-            })
-        if not out:
-            raise PullError("远端没有匹配 %s 的文件" % pattern)
-        # 轮转文件按修改时间升序拼，时间线才连得上
-        out.sort(key=lambda x: (x["mtime"], x["path"]))
-        return out
+            try:
+                return [self.stat_file(pattern)]
+            except PullError as exc:
+                if _IS_DIR_MARK not in str(exc):
+                    raise
+        else:
+            dirname = posixpath.dirname(pattern) or "."
+            base = posixpath.basename(pattern)
+            try:
+                entries = self._sftp.listdir_attr(dirname)
+            except IOError as exc:
+                raise PullError("列目录失败 %s：%s" % (dirname, exc)) from exc
+            out = []
+            for item in entries:
+                if not fnmatch.fnmatch(item.filename, base):
+                    continue
+                if item.st_mode is not None and statmod.S_ISDIR(item.st_mode):
+                    continue
+                out.append({
+                    "path": posixpath.join(dirname, item.filename),
+                    "size": int(item.st_size or 0),
+                    "mtime": int(item.st_mtime or 0),
+                })
+            if not out:
+                raise PullError("远端没有匹配 %s 的文件" % pattern)
+            # 轮转文件按修改时间升序拼，时间线才连得上
+            out.sort(key=lambda x: (x["mtime"], x["path"]))
+            return out
+        # 无通配且指到目录：展开该目录下的全部文件（不含子目录）
+        return self._expand_dir(pattern)
 
-    def _one(self, path: str) -> dict[str, Any]:
+    def _expand_dir(self, pattern: str) -> list[dict[str, Any]]:
+        d, entries = self.listdir(pattern)
+        # 目录里只有子目录、没有文件时返回空清单——probe 照样算连通成功，
+        # 是否真的没文件可拉由 _run_pull 的 files_total 兜底判断
+        files = [{"path": x["path"], "size": x["size"], "mtime": x["mtime"]}
+                 for x in entries if not x["is_dir"]]
+        files.sort(key=lambda x: (x["mtime"], x["path"]))
+        return files
+
+    def stat_file(self, path: str) -> dict[str, Any]:
         try:
             info = self._sftp.stat(path)
         except IOError as exc:
             raise PullError("远端文件不存在或不可读：%s（%s）" % (path, exc)) from exc
         if statmod.S_ISDIR(info.st_mode or 0):
-            raise PullError("%s 是目录，请写到文件名或用通配" % path)
+            raise PullError("%s %s" % (path, _IS_DIR_MARK))
         return {"path": path, "size": int(info.st_size or 0), "mtime": int(info.st_mtime or 0)}
+
+    def listdir(self, dirpath: str) -> tuple[str, list[dict[str, Any]]]:
+        d = (dirpath or "").strip() or "/"
+        if not d.startswith("/"):
+            d = "/" + d
+        d = d.rstrip("/") or "/"
+        try:
+            entries = self._sftp.listdir_attr(d)
+        except IOError:
+            # 指到了文件上：退回父目录继续，真实目录放进返回值
+            parent = posixpath.dirname(d) or "/"
+            try:
+                entries = self._sftp.listdir_attr(parent)
+            except IOError as exc:
+                raise PullError("列目录失败 %s：%s" % (d, exc)) from exc
+            d = parent
+        out = []
+        for item in entries:
+            name = item.filename or ""
+            if name in (".", ".."):
+                continue
+            is_dir = statmod.S_ISDIR(item.st_mode or 0)
+            out.append({
+                "name": name,
+                "path": posixpath.join(d, name),
+                "size": 0 if is_dir else int(item.st_size or 0),
+                "mtime": int(item.st_mtime or 0) if item.st_mtime else 0,
+                "is_dir": is_dir,
+            })
+        out.sort(key=lambda x: (not x["is_dir"], x["name"].lower()))
+        return d, out
 
     def open_raw(self, path: str) -> BinaryIO:
         try:
@@ -520,46 +614,106 @@ class _SmbFS(RemoteFS):
         unc = self._unc(pattern)
         if not _has_glob(pattern):
             try:
-                info = self._c.stat(unc)
+                return [self.stat_file(pattern)]
+            except PullError as exc:
+                if _IS_DIR_MARK not in str(exc):
+                    raise
+        else:
+            dirname, base = ntpath.split(unc)
+            dir_unc = dirname or "\\\\%s" % self._host
+            # 让服务器侧用通配筛，比全列回来再匹配省一次往返
+            try:
+                entries = self._c.scandir(dir_unc, search_pattern=base)
             except Exception as exc:
-                raise PullError("远端文件不存在或不可读：%s（%s）" % (pattern, exc)) from exc
-            if getattr(info, "is_directory", lambda: False)():
-                raise PullError("%s 是目录，请写到文件名或用通配" % pattern)
-            return [{"path": pattern, "size": int(info.st_size or 0),
-                     "mtime": int(getattr(info, "st_mtime", 0) or 0)}]
+                raise PullError("列目录失败 %s：%s" % (dirname, exc)) from exc
+            out = []
+            shown_dir = ntpath.dirname(pattern) or ""
+            for entry in entries:
+                if not fnmatch.fnmatch(entry.name, base):
+                    continue
+                try:
+                    is_dir = entry.is_dir()
+                except Exception:
+                    is_dir = False   # 目录判断失败时当文件处理，交给下面的 stat 决定
+                if is_dir:
+                    continue
+                try:
+                    info = entry.stat()
+                except Exception:
+                    # stat 失败不丢条目：以 size=0 进清单，打开阶段自然失败并进 skipped。
+                    # 直接 continue 会让用户以为拉全了，实际少文件且无处可查
+                    info = None
+                shown = ntpath.join(shown_dir, entry.name) if shown_dir else entry.name
+                out.append({"path": shown,
+                            "size": int(info.st_size or 0) if info else 0,
+                            "mtime": int(getattr(info, "st_mtime", 0) or 0) if info else 0})
+            if not out:
+                raise PullError("远端没有匹配 %s 的文件" % pattern)
+            out.sort(key=lambda x: (x["mtime"], x["path"]))
+            return out
+        # 无通配且指到目录：展开该目录下的全部文件（不含子目录）
+        return self._expand_dir(pattern)
 
-        dirname, base = ntpath.split(unc)
-        dir_unc = dirname or "\\\\%s" % self._host
-        # 让服务器侧用通配筛，比全列回来再匹配省一次往返
+    def _expand_dir(self, pattern: str) -> list[dict[str, Any]]:
+        d, entries = self.listdir(pattern)
+        # 目录里只有子目录、没有文件时返回空清单——probe 照样算连通成功，
+        # 是否真的没文件可拉由 _run_pull 的 files_total 兜底判断
+        files = [{"path": x["path"], "size": x["size"], "mtime": x["mtime"]}
+                 for x in entries if not x["is_dir"]]
+        files.sort(key=lambda x: (x["mtime"], x["path"]))
+        return files
+
+    def stat_file(self, path: str) -> dict[str, Any]:
         try:
-            entries = self._c.scandir(dir_unc, search_pattern=base)
+            info = self._c.stat(self._unc(path))
         except Exception as exc:
-            raise PullError("列目录失败 %s：%s" % (dirname, exc)) from exc
+            raise PullError("远端文件不存在或不可读：%s（%s）" % (path, exc)) from exc
+        if getattr(info, "is_directory", lambda: False)():
+            raise PullError("%s %s" % (path, _IS_DIR_MARK))
+        return {"path": path, "size": int(info.st_size or 0),
+                "mtime": int(getattr(info, "st_mtime", 0) or 0)}
+
+    def listdir(self, dirpath: str) -> tuple[str, list[dict[str, Any]]]:
+        base = (dirpath or "").strip().replace("/", "\\").rstrip("\\")
+        if base and not base.startswith("\\\\") and not re.match(r"^[A-Za-z]:", base):
+            raise PullError("SMB 浏览路径要写成 \\\\主机\\共享\\子目录 或 C:\\Logs 形式")
+        unc = self._unc(base) if base else "\\\\%s\\" % self._host
+        try:
+            entries = list(self._c.scandir(unc))
+        except Exception:
+            if not base:
+                raise PullError("列目录失败 %s" % unc) from None
+            parent = ntpath.dirname(base)
+            if not parent or parent == base:
+                raise PullError("列目录失败 %s（已是顶层）" % base) from None
+            try:
+                entries = list(self._c.scandir(self._unc(parent)))
+            except Exception as exc:
+                raise PullError("列目录失败 %s：%s" % (parent, exc)) from exc
+            base = parent
         out = []
-        shown_dir = ntpath.dirname(pattern) or ""
+        prefix = base.rstrip("\\") if base else "\\\\%s" % self._host
         for entry in entries:
-            if not fnmatch.fnmatch(entry.name, base):
+            name = entry.name or ""
+            if name in (".", ".."):
                 continue
             try:
                 is_dir = entry.is_dir()
             except Exception:
-                is_dir = False   # 目录判断失败时当文件处理，交给下面的 stat 决定
-            if is_dir:
-                continue
+                is_dir = False
             try:
                 info = entry.stat()
             except Exception:
-                # stat 失败不丢条目：以 size=0 进清单，打开阶段自然失败并进 skipped。
-                # 直接 continue 会让用户以为拉全了，实际少文件且无处可查
                 info = None
-            shown = ntpath.join(shown_dir, entry.name) if shown_dir else entry.name
-            out.append({"path": shown,
-                        "size": int(info.st_size or 0) if info else 0,
-                        "mtime": int(getattr(info, "st_mtime", 0) or 0) if info else 0})
-        if not out:
-            raise PullError("远端没有匹配 %s 的文件" % pattern)
-        out.sort(key=lambda x: (x["mtime"], x["path"]))
-        return out
+            out.append({
+                "name": name,
+                "path": prefix + "\\" + name,
+                "size": 0 if is_dir else (int(info.st_size or 0) if info else 0),
+                "mtime": int(getattr(info, "st_mtime", 0) or 0) if info else 0,
+                "is_dir": is_dir,
+            })
+        out.sort(key=lambda x: (not x["is_dir"], x["name"].lower()))
+        return base, out
 
     def open_raw(self, path: str) -> BinaryIO:
         try:
@@ -577,6 +731,10 @@ class _SmbFS(RemoteFS):
 class _HttpFS(RemoteFS):
     protocol = "http"
 
+    # 直连 opener：绕开 HTTP_PROXY/HTTPS_PROXY 等系统代理——拉日志走 Clash 之类的
+    # 代理时，对 127.0.0.1/内网主机的请求会被代理改写成 404/拒绝，行为完全不可预期
+    _opener = urllib.request.build_opener(urllib.request.ProxyHandler({}))
+
     def __init__(self, spec: dict[str, Any]):
         self.url = spec["url"]
         parsed = urllib.parse.urlsplit(self.url)
@@ -590,42 +748,121 @@ class _HttpFS(RemoteFS):
             token = base64.b64encode(("%s:%s" % (user, password)).encode()).decode()
             self._headers["Authorization"] = "Basic " + token
 
-    def _request(self, method: str, extra: dict[str, str] | None = None):
+    def _request(self, method: str, extra: dict[str, str] | None = None, url: str | None = None):
         headers = dict(self._headers)
         headers.update(extra or {})
-        req = urllib.request.Request(self.url, method=method, headers=headers)
+        req = urllib.request.Request(url or self.url, method=method, headers=headers)
         try:
-            return urllib.request.urlopen(req, timeout=CONNECT_TIMEOUT)
+            return self._opener.open(req, timeout=CONNECT_TIMEOUT)
         except urllib.error.HTTPError as exc:
             raise PullError("HTTP %s：%s" % (exc.code, exc.reason)) from exc
         except urllib.error.URLError as exc:
-            raise PullError("连不上 %s（%s）" % (self.url, exc.reason)) from exc
+            raise PullError("连不上 %s（%s）——检查主机端口对不对，目标服务有没有在跑"
+                            % (_disp_url(url or self.url), exc.reason)) from exc
 
     def expand(self, pattern: str) -> list[dict[str, Any]]:
         if _has_glob(pattern):
             raise PullError("HTTP 不支持通配，请给出确切的文件 URL")
+        if pattern.endswith("/"):
+            # 尾斜杠约定为目录：展开该目录下全部文件（HTTP 页面上无法区分文件与目录，
+            # 只有尾斜杠是明确信号；不确定就用「浏览目录」勾选）
+            return self._expand_dir(pattern)
+        return [self.stat_file(pattern)]
+
+    def _expand_dir(self, pattern: str) -> list[dict[str, Any]]:
+        d, entries = self.listdir(pattern)
+        # 目录里只有子目录、没有文件时返回空清单——probe 照样算连通成功，
+        # 是否真的没文件可拉由 _run_pull 的 files_total 兜底判断
+        files = [{"path": x["path"], "size": x["size"], "mtime": x["mtime"]}
+                 for x in entries if not x["is_dir"]]
+        files.sort(key=lambda x: (x["mtime"], x["path"]))
+        return files
+
+    def stat_file(self, path: str) -> dict[str, Any]:
+        # 相对路径按初始 URL 归一成绝对 URL：勾选拉取传来的已是完整 URL，
+        # expand 传来的是用户填的路径部分，回传的 path 必须能直接 open()
+        absu = urllib.parse.urljoin(self.url, path) if not path.lower().startswith(("http://", "https://")) else path
         size, mtime = 0, 0
         try:
-            with self._request("HEAD") as resp:
+            with self._request("HEAD", url=absu) as resp:
                 size = int(resp.headers.get("Content-Length") or 0)
                 mtime = _http_mtime(resp.headers.get("Last-Modified"))
         except PullError:
             # 不少服务端禁 HEAD，退一步用 Range 探一下总长
             try:
-                with self._request("GET", {"Range": "bytes=0-0"}) as resp:
+                with self._request("GET", {"Range": "bytes=0-0"}, url=absu) as resp:
                     size = _content_range_total(resp.headers.get("Content-Range")) or int(
                         resp.headers.get("Content-Length") or 0)
                     mtime = _http_mtime(resp.headers.get("Last-Modified"))
             except PullError as exc:
                 raise PullError("无法读取远端文件信息：%s" % exc) from exc
-        return [{"path": self.url, "size": size, "mtime": mtime}]
+        return {"path": absu, "size": size, "mtime": mtime}
+
+    def listdir(self, dirpath: str) -> tuple[str, list[dict[str, Any]]]:
+        """解析服务端目录列表页（nginx/Apache autoindex）。
+
+        dirpath 是目录的 URL 路径部分（/logs/），也容忍完整 URL（刷新场景）。
+        条目的 path 统一用 URL 路径部分，回传给 normalize/open 时不会二次拼接；
+        服务器没开 autoindex 时页面上除自身外没有子项链接，报错提示去开。
+        """
+        base = (dirpath or "/").strip()
+        if base.lower().startswith(("http://", "https://")):
+            base = urllib.parse.urlsplit(base).path or "/"
+        if not base.startswith("/"):
+            base = "/" + base
+        base = base if base.endswith("/") else base + "/"
+        url = urllib.parse.urljoin(self.url, base)
+        try:
+            with self._request("GET", url=url) as resp:
+                charset = resp.headers.get_content_charset() or "utf-8"
+                page = resp.read(2 * 1024 * 1024).decode(charset, "replace")
+        except PullError as exc:
+            raise PullError("读目录页失败（服务器可能没开目录列表）：%s" % exc) from exc
+        entries: dict[str, dict[str, Any]] = {}
+        matches = list(_LINK_RE.finditer(page))
+        for i, m in enumerate(matches):
+            href = htmlmod.unescape((m.group(1) or "").strip())
+            if not href or href.startswith(("?", "#", "javascript:", "mailto:")):
+                continue
+            absu = urllib.parse.urljoin(url, href)
+            parts = urllib.parse.urlsplit(absu)
+            origin = urllib.parse.urlsplit(url)
+            if (parts.scheme, parts.hostname, parts.port or 0) != (origin.scheme, origin.hostname, origin.port or 0):
+                continue   # 跳出站点的外链
+            path = parts.path or "/"
+            if not path.startswith(origin.path):
+                continue   # 跳到目录之外（../ 这类）
+            if path.rstrip("/") == origin.path.rstrip("/"):
+                continue   # 目录页自身
+            is_dir = path.endswith("/")
+            if entries.get(path):
+                continue
+            seg = htmlmod.unescape(re.sub(r"<[^>]+>", " ", page[m.end(): matches[i + 1].start() if i + 1 < len(matches) else len(page)]))
+            size, mtime = _autoindex_meta(seg)
+            name = urllib.parse.unquote(path.rstrip("/").rsplit("/", 1)[-1]) or path
+            entries[path] = {
+                "name": name,
+                "path": path,
+                "size": 0 if is_dir else size,
+                "mtime": mtime,
+                "is_dir": is_dir,
+            }
+        out = list(entries.values())
+        if not out:
+            raise PullError("目录页里没有子项链接：%s——服务器可能没开目录列表（nginx autoindex / Apache Indexes）" % base)
+        out.sort(key=lambda x: (not x["is_dir"], x["name"].lower()))
+        return base, out
 
     def open_raw(self, path: str) -> BinaryIO:
-        # 始终带 Range：服务端支持就流式吐，不支持也会回 200 整份，urllib 一样能读
-        return self._request("GET")
+        # 始终带 Range：服务端支持就流式吐，不支持也会回 200 整份，urllib 一样能读。
+        # path 可能是 URL 路径部分（目录浏览传来的），统一按初始 URL 归一成绝对 URL；
+        # 不能固定 GET 初始 URL，否则会把目录页本身当日志拉进来
+        return self._request("GET", url=urllib.parse.urljoin(self.url, path)
+                             if not path.lower().startswith(("http://", "https://")) else path)
 
     def sample(self, path: str, size: int = SAMPLE_BYTES) -> dict[str, Any]:
-        with self._request("GET", {"Range": "bytes=0-%d" % (size - 1)}) as resp:
+        url = urllib.parse.urljoin(self.url, path) if not path.lower().startswith(("http://", "https://")) else path
+        with self._request("GET", {"Range": "bytes=0-%d" % (size - 1)}, url=url) as resp:
             head = resp.read(size) or b""
         data = decode_sample(head)
         return {"data": data, "raw_len": len(head), "compressed": data is not head}
@@ -642,6 +879,38 @@ def _http_mtime(value: str | None) -> int:
         return int(parsedate_to_datetime(value).timestamp())
     except Exception:
         return 0
+
+
+# --- autoindex 目录页解析 ---------------------------------------------------
+
+_LINK_RE = re.compile(r'<a\s[^>]*href="([^"]+)"[^>]*>(.*?)</a>', re.I | re.S)
+# nginx 列表行：18-Nov-2026 10:00 / Apache：2026-11-18 10:00
+_AI_DATE_RE = re.compile(r"(\d{1,2}-[A-Za-z]{3}-\d{4}|\d{4}-\d{1,2}-\d{1,2})\s+(\d{1,2}:\d{2})")
+_AI_SIZE_RE = re.compile(r"(\d[\d.]*)(\s*[KMGT]?)\s*$", re.I)
+_AI_MULT = {"": 1, "K": 1024, "M": 1024 ** 2, "G": 1024 ** 3, "T": 1024 ** 4}
+
+
+def _autoindex_meta(text: str) -> tuple[int, int]:
+    """从链接后面的文本里抠修改时间和大小，抠不到就置 0（拉取不受影响）。"""
+    mtime = 0
+    dm = _AI_DATE_RE.search(text)
+    if dm:
+        for fmt in ("%d-%b-%Y %H:%M", "%Y-%m-%d %H:%M"):
+            try:
+                mtime = int(time.mktime(time.strptime(dm.group(1) + " " + dm.group(2), fmt)))
+                break
+            except ValueError:
+                continue
+    size = 0
+    for token in reversed(text.split()):
+        sm = _AI_SIZE_RE.match(token.strip())
+        if sm:
+            try:
+                size = int(float(sm.group(1)) * _AI_MULT.get(sm.group(2).strip().upper(), 1))
+            except ValueError:
+                size = 0
+            break
+    return size, mtime
 
 
 def _content_range_total(value: str | None) -> int:
@@ -859,38 +1128,22 @@ JOBS = Jobs()
 # --- 探测 -------------------------------------------------------------------
 
 def probe(data: dict[str, Any]) -> dict[str, Any]:
-    """连通性 + 文件清单 + 行数估算 + 几行样本，一次给全。"""
-    spec = normalize(data)
+    """纯连通性测试：只验证「服务开没开、连不连得上、认不认得了」。
+
+    不检查文件——文件有没有、路径对不对是「浏览目录 / 拉取」的事。
+    路径留空自动落到各协议根（normalize path_optional）。
+    """
+    spec = normalize(data, path_optional=True)
     started = time.time()
     fs = open_fs(spec)
     try:
-        files = fs.expand(spec["path"])
-        total = sum(int(f["size"]) for f in files)
-        # 多文件时取最后一个（最新的那份），最能反映当前格式
-        target = files[-1]["path"] if len(files) > 1 else files[0]["path"]
-        info = fs.sample(target)
-        est = estimate_lines(info["data"], info["raw_len"], total)
-        sample = lines_from_sample(info["data"])
         if spec["auth"] != "none":
             remember_auth(spec)
-        notes = []
-        if info["compressed"]:
-            notes.append("压缩文件，行数是按样本压缩比推算的")
-        if len(files) > 1:
-            notes.append("匹配 %d 个文件，按修改时间从旧到新拼接" % len(files))
-        if total > 500 * 1024 * 1024:
-            notes.append("总量超过 500 MB，导入会分批，耗时取决于带宽")
         return {
             "ok": True,
             "protocol": spec["protocol"],
             "target": _safe_host(spec),
             "banner": fs.banner,
-            "files": [{**f, "name": posixpath.basename(f["path"].replace("\\", "/"))} for f in files[:200]],
-            "files_total": len(files),
-            "total_size": total,
-            "est_lines": est,
-            "sample": sample,
-            "notes": notes,
             "elapsed": round(time.time() - started, 2),
         }
     finally:
@@ -899,23 +1152,91 @@ def probe(data: dict[str, Any]) -> dict[str, Any]:
 
 # --- 拉取 -------------------------------------------------------------------
 
+def list_dir(data: dict[str, Any]) -> dict[str, Any]:
+    """浏览远端目录：连通 + 单层清单。同步执行，给前端勾选拉取用。
+
+    路径指到文件上时自动退回其父目录；HTTP 协议要求服务器开了目录列表
+    （nginx autoindex / Apache Indexes），否则无法解析清单。
+    """
+    spec = normalize(data, path_optional=True)
+    started = time.time()
+    fs = open_fs(spec)
+    try:
+        if spec["protocol"] == "http":
+            url = spec["url"]
+            if not url.endswith("/"):
+                last = urllib.parse.unquote(url.rsplit("/", 1)[-1])
+                if "." in last:
+                    url = url[: url.rfind("/") + 1]
+            dirpath = url if url.endswith("/") else url + "/"
+        else:
+            dirpath = (spec.get("path") or "").strip()
+        dirpath, entries = fs.listdir(dirpath)
+        if spec["auth"] != "none":
+            remember_auth(spec)
+        files = [x for x in entries if not x["is_dir"]]
+        return {
+            "ok": True,
+            "protocol": spec["protocol"],
+            "target": _safe_host(spec),
+            "banner": fs.banner,
+            "path": dirpath,
+            "parent": _parent_of(spec["protocol"], dirpath),
+            "dirs": sum(1 for x in entries if x["is_dir"]),
+            "files": sum(1 for x in entries if not x["is_dir"]),
+            "total_size": sum(int(x["size"]) for x in files),
+            "entries": entries[:500],
+            "elapsed": round(time.time() - started, 2),
+        }
+    finally:
+        fs.close()
+
+
+def _parent_of(protocol: str, dirpath: str) -> str:
+    """上级目录路径（根目录返回空，前端据此禁用「上级」）。HTTP 返回 URL 路径部分。"""
+    if protocol == "http":
+        path = urllib.parse.urlsplit(dirpath).path if dirpath.lower().startswith(("http://", "https://")) else dirpath
+        path = path.rstrip("/")
+        if "/" not in path:
+            return ""
+        return path.rsplit("/", 1)[0] + "/"
+    if protocol == "smb":
+        parent = ntpath.dirname(dirpath.rstrip("\\"))
+        return parent if parent and parent != dirpath.rstrip("\\") else ""
+    parent = posixpath.dirname(dirpath.rstrip("/"))
+    return parent if parent and parent != dirpath.rstrip("/") else ""
+
+
 def start_pull(data: dict[str, Any], importer, task_id: str, source_id: str,
-               fmt: str, encoding: str = "utf-8") -> Job:
-    """建 job、起线程，立刻返回。真正的导入在后台跑。"""
-    spec = normalize(data)
+               fmt: str, encoding: str = "utf-8",
+               file_list: list[str] | None = None) -> Job:
+    """建 job、起线程，立刻返回。真正的导入在后台跑。
+
+    file_list：明确勾选的文件清单。给了就只拉这份清单（不再按路径模式展开），
+    没给保持旧行为。
+    """
+    spec = normalize(data, path_optional=file_list is not None)
     if not task_id:
         raise ValueError("缺少任务 id")
     if not source_id:
         raise ValueError("请选择归入哪个日志源")
     if not fmt:
         raise ValueError("请选择解析格式")
+    if file_list is not None:
+        file_list = [str(x).strip() for x in file_list if str(x).strip()]
+        if not file_list:
+            raise ValueError("勾选清单为空")
+        if len(file_list) > 500:
+            raise ValueError("一次最多勾选 500 个文件")
+        if len(set(file_list)) != len(file_list):
+            file_list = list(dict.fromkeys(file_list))
 
     job = Job("pull", spec)
     job.task_id = task_id
     job.message = "准备连接"
     JOBS.add(job)
     thread = threading.Thread(
-        target=_run_pull, args=(job, spec, importer, task_id, source_id, fmt, encoding),
+        target=_run_pull, args=(job, spec, importer, task_id, source_id, fmt, encoding, file_list),
         name="remote-pull-" + job.id, daemon=True,
     )
     thread.start()
@@ -923,7 +1244,8 @@ def start_pull(data: dict[str, Any], importer, task_id: str, source_id: str,
 
 
 def _run_pull(job: Job, spec: dict[str, Any], importer, task_id: str,
-              source_id: str, fmt: str, encoding: str) -> None:
+              source_id: str, fmt: str, encoding: str,
+              file_list: list[str] | None = None) -> None:
     job.state = "running"
     job.started_at = time.time()
     fs: RemoteFS | None = None
@@ -933,7 +1255,17 @@ def _run_pull(job: Job, spec: dict[str, Any], importer, task_id: str,
             raise PullError("已取消")   # 提交后立刻取消：别再对目标主机发起认证
         fs = open_fs(spec)
         job.message = "读取文件清单"
-        files = fs.expand(spec["path"])
+        if file_list:
+            files = []
+            for p in file_list:
+                try:
+                    files.append(fs.stat_file(p))
+                except Exception:
+                    # 单个 stat 失败不挡整批：size=0 进清单，打开阶段自然跳过并记录
+                    files.append({"path": p, "size": 0, "mtime": 0})
+            files.sort(key=lambda x: (x["mtime"], x["path"]))
+        else:
+            files = fs.expand(spec["path"])
         if job.cancelled():
             fs.close()
             raise PullError("已取消")   # 连接建立后再查一次，别白拉清单

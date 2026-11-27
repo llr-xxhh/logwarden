@@ -22,7 +22,10 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
 
-FORMAT_DIR = Path(__file__).resolve().parents[1] / "formats"
+from paths import DATA as _DATA
+
+# formats/ 是用户在界面里自定义 Web 格式的落盘目录，属可写数据，跟随 exe/项目根
+FORMAT_DIR = _DATA / "formats"
 TOKEN_RE = re.compile(r"\$[A-Za-z_][A-Za-z0-9_]*")
 FIELD_NAME_RE = re.compile(r"^[A-Za-z_][A-Za-z0-9_]*$")
 

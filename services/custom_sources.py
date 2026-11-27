@@ -12,8 +12,9 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
 
-ROOT = Path(__file__).resolve().parents[1]
-SOURCE_DIR = ROOT / "sources"
+from paths import DATA
+
+SOURCE_DIR = DATA / "sources"
 ID_RE = re.compile(r"^[a-z][a-z0-9_]{2,31}$")
 GROUPS = ("web", "linux", "windows", "security", "network", "app", "cloud", "db")
 LEVELS = ("required", "recommended", "optional")

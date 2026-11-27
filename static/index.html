@@ -377,6 +377,9 @@ tbody tr.clk{cursor:pointer}
 .pager .btns{display:flex;gap:7px}
 .pager button{padding:6px 14px;border:1px solid var(--border-s);background:#fff;border-radius:7px;cursor:pointer;font-size:12px;font-family:inherit;font-weight:500}
 .pager button:disabled{opacity:.35;cursor:default}.pager button:not(:disabled):hover{background:#f1f5f9;border-color:var(--faint)}
+.pager .jumper{display:flex;align-items:center;gap:7px;color:var(--muted)}
+.pager .jumper input{width:64px;padding:6px 9px;border:1px solid var(--border-s);background:#fff;border-radius:7px;font-size:12px;font-family:inherit;text-align:center;color:var(--text)}
+.pager .jumper input:focus{outline:none;border-color:var(--pri);box-shadow:0 0 0 2px rgba(13,148,136,.13)}
 
 /* ===== 通用面板 / 卡片 ===== */
 .pad{padding:20px 22px}
@@ -498,6 +501,8 @@ tbody tr.clk{cursor:pointer}
 .alerts-sum b{color:var(--text);font-size:14px;margin:0 2px}
 .alerts-sum #toRules{margin-left:auto;color:var(--pri-d);cursor:pointer;font-weight:600;font-size:12.5px}
 .alerts-sum #toRules:hover{text-decoration:underline}
+.alerts-sum #recheck{color:var(--pri);cursor:pointer;font-weight:600;font-size:12.5px}
+.alerts-sum #recheck:hover{text-decoration:underline}
 .alerts-empty{padding:50px;text-align:center;color:var(--faint);font-size:13px;background:#fff;border:1px dashed var(--border-s);border-radius:12px}
 .hit{padding:9px 18px;border-bottom:1px solid #f8fafc;display:flex;gap:12px;font-size:12px;cursor:pointer;align-items:center;transition:background .1s}
 .hit:hover{background:#f8fafc}.hit:last-child{border-bottom:none}
@@ -650,6 +655,22 @@ tbody tr.clk{cursor:pointer}
 .srctab svg{width:15px;height:15px;fill:none;stroke:currentColor;stroke-width:1.4;stroke-linecap:round;stroke-linejoin:round}
 .srctab .bd{font-size:10px;background:var(--amber-l);color:var(--amber);border-radius:4px;padding:1px 5px;font-weight:500}
 .srcpane{display:none}.srcpane.on{display:block}
+/* 四种导入方式整体包成显眼块：tab 大号化，一眼可找 */
+.import-box{margin-bottom:18px;padding:16px 18px 18px;border:1.5px dashed var(--pri);background:rgba(13,148,136,.04);border-radius:12px}
+.import-box .srctabs{margin-bottom:14px}
+.import-box .srctab{padding:11px 22px;font-size:14px;border-color:#115e59;background:#115e59;color:#ccfbf1}
+.import-box .srctab:hover{background:#0f766e;border-color:#0f766e;color:#fff}
+.import-box .srctab.on{background:var(--pri);border-color:var(--pri);color:#fff;box-shadow:0 2px 10px rgba(13,148,136,.35)}
+.import-box .srcpane{padding:2px 4px 0}
+.import-box .wl-cta{border-style:solid;background:#fff;margin-bottom:0}
+/* 本机 Windows 日志：扫描入口做成大块 CTA，避免埋在小按钮里找不到 */
+.wl-cta{display:flex;align-items:center;gap:14px;margin:0 0 12px;padding:13px 16px;border:1.5px dashed var(--pri);background:rgba(13,148,136,.06);border-radius:10px}
+.wl-scan-btn{display:inline-flex;align-items:center;gap:9px;padding:11px 26px;border:none;border-radius:9px;background:var(--pri);color:#fff;font-size:14.5px;font-weight:600;font-family:inherit;cursor:pointer;box-shadow:0 3px 12px rgba(13,148,136,.35);transition:all .15s;flex:none}
+.wl-scan-btn:hover:not(:disabled){background:var(--pri-d);transform:translateY(-1px);box-shadow:0 5px 16px rgba(13,148,136,.42)}
+.wl-scan-btn:active{transform:none;box-shadow:0 2px 8px rgba(13,148,136,.3)}
+.wl-scan-btn:disabled{opacity:.6;cursor:default}
+.wl-scan-btn svg{width:18px;height:18px;fill:none;stroke:#fff;stroke-width:1.6;stroke-linecap:round;stroke-linejoin:round;flex:none}
+.wl-cta-hint{font-size:12px;color:var(--muted);line-height:1.6}
 /* 本机 Windows 日志：点选导入 */
 .wl-list{max-height:420px;overflow:auto;border:1px solid var(--border);border-radius:10px;background:var(--surface)}
 .wl-row{display:flex;align-items:center;gap:10px;padding:8px 12px;border-bottom:1px solid var(--border);font-size:12.5px}
@@ -685,6 +706,24 @@ tbody tr.clk{cursor:pointer}
 .probe .ok{color:var(--green);font-weight:600}
 .probe .bad{color:var(--red-d);font-weight:600}
 .prog{margin-top:14px;display:none}
+/* 远端目录浏览：探测/拉取之外的第三种入口——列一层目录，勾选后只拉勾选的 */
+.rlist{margin-top:14px;border:1px solid var(--border-s);border-radius:10px;background:var(--surface);overflow:hidden}
+.rl-head{display:flex;align-items:center;gap:8px;padding:9px 12px;background:#f8fafc;border-bottom:1px solid var(--border)}
+.rl-crumb{font-size:12px;color:var(--text);font-family:ui-monospace,Consolas,monospace;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;flex:1;min-width:0}
+.rl-list{max-height:340px;overflow-y:auto;font-size:12.5px}
+.rl-thead,.rl-trow{display:grid;grid-template-columns:minmax(0,1fr) 64px 128px 76px;gap:8px;padding:5px 12px;align-items:center}
+.rl-thead{background:#f8fafc;border-bottom:1px solid var(--border);font-size:11px;color:var(--muted);font-weight:600;position:sticky;top:0}
+.rl-trow{border-top:1px solid #f1f5f9;cursor:pointer}
+.rl-trow:hover{background:#f8fafc}
+.rl-trow .nm{display:flex;align-items:center;gap:7px;min-width:0;overflow:hidden;white-space:nowrap;text-overflow:ellipsis;color:var(--text)}
+.rl-trow .ty{color:var(--muted);font-size:11.5px}
+.rl-trow .sz{color:var(--muted);font-size:11.5px;font-variant-numeric:tabular-nums;text-align:right}
+.rl-trow .mt{color:var(--faint);font-size:11px;font-variant-numeric:tabular-nums}
+.rl-trow.dir .nm{color:#0f766e;font-weight:600}
+.rl-trow.up{background:#fff7ed;color:#9a3412}
+.rl-trow.up .nm,.rl-trow.up .ty,.rl-trow.up .mt,.rl-trow.up .sz{color:#9a3412}
+.rl-trow input[type=checkbox]{accent-color:var(--pri);flex:none}
+.rl-foot{padding:8px 12px;font-size:11.5px;color:var(--faint);border-top:1px solid var(--border)}
 .prog.on{display:block}
 .prog .ln{display:flex;justify-content:space-between;font-size:11.5px;color:var(--muted)}
 .prog .bar{height:6px;background:#f1f5f9;border-radius:3px;overflow:hidden;margin-top:7px}
@@ -745,7 +784,7 @@ tbody tr.clk{cursor:pointer}
     <div class="sec">任务</div>
     <div class="task on" id="taskCurrent" style="display:none"><div class="t1" id="taskCurName">—</div><div class="t2" id="taskCurMeta">—</div></div>
   </div>
-  <div class="side-foot"><span>DuckDB · 本地</span><span>v0.8</span></div>
+  <div class="side-foot"><span>DuckDB · 本地</span><span>v0.9</span></div>
 </aside>
 
 <main>
@@ -795,6 +834,7 @@ tbody tr.clk{cursor:pointer}
     <!-- ============ 仪表盘 ============ -->
     <div class="page on" id="p-dash">
       <div class="pad">
+        <div class="note" style="background:#f0fdfa;border:1px solid #99f6e4;color:#115e59"><b>调试模式：</b>本工具默认以浏览器调试模式开启——本地服务端口 <b id="svcPort">8766</b>（http://127.0.0.1:<span id="svcPort2">8766</span>），调试浏览器远程调试端口 <b>9223</b>（CDP；Firefox 为 WebDriver BiDi）。<b>桌面 AI 可以通过该调试端口对本工具执行任何操作</b>——读取页面、点击、执行脚本、调用全部接口、导入导出数据，无需额外授权；不需要 AI 介入时不要让 AI 连接该端口即可。</div>
         <div class="cards">
           <div class="card c-blue"><div class="ico">▤</div><div class="lb" id="dc1l">总条数</div><div class="vl" id="dc1">0</div><div class="ft" id="dc1f">—</div></div>
           <div class="card c-purple"><div class="ico">◉</div><div class="lb" id="dc2l">独立 IP</div><div class="vl" id="dc2">0</div><div class="ft" id="dc2f">—</div></div>
@@ -845,6 +885,7 @@ tbody tr.clk{cursor:pointer}
           <div id="importNeed"></div>
         </div>
 
+        <div class="import-box">
         <div class="srctabs" id="srcTabs">
           <div class="srctab on" data-src="local">
             <svg viewBox="0 0 16 16"><path d="M8 11V2"/><path d="M4.5 5.5 8 2l3.5 3.5"/><path d="M2.5 11v2.5a1 1 0 0 0 1 1h9a1 1 0 0 0 1-1V11"/></svg>
@@ -873,8 +914,11 @@ tbody tr.clk{cursor:pointer}
         <!-- 本机 Windows 日志：扫描 winevt\Logs，勾选即导入 -->
         <div class="srcpane" id="src-winlocal">
           <div class="note" style="margin:0 0 10px">直接读本机 <b>%SystemRoot%\System32\winevt\Logs</b>，不用去文件夹里找。按<b>必要项 → 推荐项 → 可选项</b>排序标注（与上方日志清单同级），必要/推荐默认勾选；不在本任务组件的沉底置灰。<b>Security.evtx 需要管理员权限</b>，读不了时请以管理员身份重启本工具。日志服务正在写入，个别最新事件可能解析失败，属正常。</div>
+          <div class="wl-cta">
+            <button class="wl-scan-btn" id="btnWlScan"><svg viewBox="0 0 16 16"><rect x="1.5" y="2.5" width="9" height="7" rx="1.2"/><path d="M4 12.5h4"/><circle cx="11.8" cy="9.8" r="2.6"/><path d="M13.8 11.8l1.7 1.7"/></svg>扫描本机 Windows 日志</button>
+            <span class="wl-cta-hint">一键枚举本机全部 .evtx 事件文件并标注必要/推荐/可选，扫完勾选即可导入</span>
+          </div>
           <div class="fbar" style="margin-bottom:10px">
-            <button class="btn pri" id="btnWlScan">扫描本机日志</button>
             <button class="btn" id="btnWlAll" style="display:none">全选可导入</button>
             <span id="wlStatus" style="font-size:12px;color:var(--muted)"></span>
             <span class="sp"></span>
@@ -891,6 +935,7 @@ tbody tr.clk{cursor:pointer}
                 <label>协议</label>
                 <div class="proto" id="proto"><div class="on" data-proto="ssh">SSH / SFTP</div><div data-proto="smb">SMB</div><div data-proto="http">HTTP / HTTPS</div></div>
               </div>
+              <div class="fld w2" id="smbHint" style="display:none"><span class="tip">对面主机没开 SMB 就连不上（445 端口不通）。Windows 开启：管理员 cmd 执行 <b>net start LanmanServer</b>（或 services.msc 启动「Server」服务），防火墙放行「文件和打印机共享」；Windows 默认已开，精简系统/改过策略的才要手动开。</span></div>
               <div class="fld"><label id="rHostLb">主机</label><input id="rHost" placeholder="IP 或域名"><span class="tip" id="rHostTip">SSH 默认 22</span></div>
               <div class="fld"><label>端口</label><input id="rPort" value="22"></div>
               <div class="fld w2"><label>用户名</label><input id="rUser" placeholder="远程账号" autocomplete="off"></div>
@@ -905,7 +950,7 @@ tbody tr.clk{cursor:pointer}
               <div class="fld w2" id="rPassWrap"><label>密码</label><input id="rPass" type="password" placeholder="只用于本次连接" autocomplete="new-password"></div>
               <div class="fld w2" id="rKeyWrap" style="display:none"><label>密钥文件</label><input id="rKey" placeholder="C:\Users\你的用户名\.ssh\id_ed25519" autocomplete="off"><span class="tip">留空则用下面粘贴的私钥</span></div>
               <div class="fld w2" id="rKeyTextWrap" style="display:none"><label>或粘贴私钥</label><textarea class="paste" id="rKeyText" style="height:78px" placeholder="-----BEGIN OPENSSH PRIVATE KEY-----"></textarea></div>
-              <div class="fld w2"><label>远端路径</label><input id="rPath" value="/var/log/nginx/access.log"><span class="tip" id="rPathTip">支持通配 access.log-*，多个轮转文件按时间拼接</span></div>
+              <div class="fld w2"><label>远端路径</label><div style="display:flex;gap:8px"><input id="rPath" value="" placeholder="留空 = 根目录 /" style="flex:1"><button class="btn" id="btnBrowse" title="列出该路径所在目录，勾选文件后只拉勾选的">浏览目录</button></div><span class="tip" id="rPathTip">留空 = 浏览根目录 /；可填文件、目录（拉全部文件）或通配 access.log-*</span></div>
               <div class="fld w2"><label>归入日志源</label><select id="rSource"></select></div>
               <div class="fld w2"><label>解析格式</label><select id="rFmt"><option value="">跟随日志源</option><option value="combined">combined</option><option value="w3c">w3c</option><option value="tomcat">tomcat</option><option value="syslog">syslog</option><option value="audit">auditd</option><option value="shell">Shell</option><option value="windows_event">Windows 事件（EVTX）</option><option value="firewall">防火墙 Syslog</option><option value="text">通用文本</option></select></div>
               <div class="fld w2"><label>编码</label><select id="rEncoding"><option value="utf-8">UTF-8（自动探测）</option><option value="gbk">GBK / GB18030</option></select></div>
@@ -921,6 +966,18 @@ tbody tr.clk{cursor:pointer}
             <div class="prog" id="progBox">
               <div class="ln"><span id="progTx">等待开始</span><span id="progPc">0%</span></div>
               <div class="bar"><i id="progBar"></i></div>
+            </div>
+            <div class="rlist" id="remoteListBox" style="display:none">
+              <div class="rl-head">
+                <span class="rl-crumb" id="rlCrumb" title="当前浏览目录"></span>
+                <span class="sp"></span>
+                <button class="btn sm" id="rlUp">上级</button>
+                <button class="btn sm" id="rlRefresh">刷新</button>
+                <button class="btn sm" id="rlAll">全选文件</button>
+                <button class="btn sm pri" id="rlPull">拉取选中</button>
+              </div>
+              <div class="rl-list" id="rlList"></div>
+              <div class="rl-foot" id="rlFoot"></div>
             </div>
           </div>
           <div class="note" style="margin:14px 0 0;background:#fffbeb;border:1px solid #fde68a;color:#92400e">先探测大小与行数再决定拉取方式。整份读进内存会让进程崩掉，超过 50 万行走分段流式导入。</div>
@@ -938,6 +995,7 @@ tbody tr.clk{cursor:pointer}
           </div>
           <div id="pasteResult" style="margin-top:12px"></div>
         </div>
+        </div><!-- /import-box -->
 
         <div class="panel h-blue" style="margin-top:18px">
           <h3><span>日志格式 <span id="fmtBadge" class="tag lo">内置 combined</span></span><span class="hint">nginx / Apache 改过 log_format 时在这里绑模板</span></h3>
@@ -970,7 +1028,7 @@ tbody tr.clk{cursor:pointer}
         <tbody id="rows"></tbody>
       </table>
       </div>
-      <div class="pager"><span id="pinfo"></span><div class="btns"><span class="resize-hint">点列头排序（升→降→取消）· 漏斗筛选 · 单击单元格复制</span><button id="prev">上一页</button><button id="next">下一页</button></div></div>
+      <div class="pager"><span id="pinfo"></span><div class="btns"><span class="resize-hint">点列头排序（升→降→取消）· 漏斗筛选 · 单击单元格复制</span><button id="prev">上一页</button><span class="jumper">第 <input id="pageJump" inputmode="numeric" value="1" title="输入页码后回车或点跳转"> 页 / <span id="pageTotal">1</span> <button id="jumpBtn">跳转</button></span><button id="next">下一页</button></div></div>
     </div>
 
     <!-- ============ 数据分析 ============ -->
@@ -1800,7 +1858,7 @@ function isExt(ip){
 function pct(a,b){return b?((a/b*100).toFixed(1)+'%'):'0%'}
 function esc(s){return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/"/g,'&quot;')}
 
-var state={page:1,size:18,q:'',status:'',exStatic:false,ex404:false,exProbe:false,fk:{},colf:{},sort:{k:'',dir:1}};
+var state={page:1,size:500,q:'',status:'',exStatic:false,ex404:false,exProbe:false,fk:{},colf:{},sort:{k:'',dir:1}};
 var STATIC_EXT=/\.(css|js|png|jpg|jpeg|gif|ico|svg|woff2?|ttf|eot)(?:\?|$)/i;
 function cfActive(f){
   if(!f)return false;
@@ -2472,7 +2530,10 @@ function renderTable(){
     var cls=l.crit?'crit':((l.flags&&l.flags.length)?'flag':'');
     return '<tr class="'+cls+'" data-id="'+(l.id==null?'':esc(String(l.id)))+'" title="双击查看原始内容">'+vis.map(function(c){return cellHTML(c.k,l)}).join('')+'</tr>'
   }).join('')||'<tr><td colspan="'+vis.length+'" style="padding:40px;text-align:center;color:var(--faint)">无匹配结果</td></tr>';
-  document.getElementById('pinfo').textContent='第 '+state.page+' / '+pages+' 页　共 '+total+' 条（原始 '+LOGS.length+' 条）';
+  document.getElementById('pinfo').textContent='共 '+total+' 条（原始 '+LOGS.length+' 条）';
+  document.getElementById('pageTotal').textContent=pages;
+  var jump=document.getElementById('pageJump');
+  if(jump&&document.activeElement!==jump&&jump.value!==String(state.page))jump.value=state.page;
   document.getElementById('prev').disabled=state.page<=1;document.getElementById('next').disabled=state.page>=pages;
   document.getElementById('fcount').textContent=regexSyntaxError(state.q)?'正则语法错误，请检查搜索表达式':'过滤后 '+total+' / '+LOGS.length+' 条';
   bindGrips();
@@ -3945,6 +4006,9 @@ document.querySelectorAll('#nav .item').forEach(function(it){
   it.onclick=function(){showPage(it.getAttribute('data-p'))}
 });
 
+/* 调试模式说明里的服务端口按实际加载端口回填（命令行 --port 改过时页面显示不撒谎） */
+(function(){var p=location.port||'8766';var a=document.getElementById('svcPort'),b=document.getElementById('svcPort2');if(a)a.textContent=p;if(b)b.textContent=p})();
+
 // 统计子页切换
 document.querySelectorAll('#statTabs .subtab').forEach(function(tb){
   tb.onclick=function(){
@@ -4003,6 +4067,14 @@ document.getElementById('reset').onclick=function(){
   renderTable()};
 document.getElementById('prev').onclick=function(){if(state.page>1){state.page--;renderTable()}};
 document.getElementById('next').onclick=function(){state.page++;renderTable()};
+/* 跳页：只管把页码交给 renderTable，超范围由它 clamp 回有效页；非数字恢复当前页 */
+function jumpToPage(){
+  var el=document.getElementById('pageJump'),v=parseInt(el.value,10);
+  if(isNaN(v)||v<1){el.value=state.page;return}
+  state.page=v;renderTable();el.value=state.page;
+}
+document.getElementById('jumpBtn').onclick=jumpToPage;
+document.getElementById('pageJump').onkeydown=function(e){if(e.key==='Enter')jumpToPage()};
 
 /* ================= 导入来源：本地 / 远程 / 粘贴 ================= */
 (function(){
@@ -4231,6 +4303,7 @@ window.addEventListener('resize',applyColWidths);
       return;
     }
     if(e.target.id==='toRules'){showPage('rules');return}
+    if(e.target.id==='recheck'){if(typeof renderAlerts==='function')renderAlerts(true);return}
     var h=e.target.closest?e.target.closest('.hit[data-ts]'):null;
     if(!h)return;
     var id=h.getAttribute('data-id'),l=null;

@@ -45,8 +45,17 @@ class NormalizeTest(unittest.TestCase):
         self.assertEqual(spec["auth"], "key")
 
     def test_missing_password(self):
+        # 密码留空已放行（内网无密码账号/匿名共享场景），由真实连接结果说话
+        spec = remote.normalize({"protocol": "ssh", "host": "h", "username": "u",
+                                 "auth": "password", "path": "/x"})
+        self.assertEqual(spec["password"], "")
+        # 匿名 SMB：账号密码全空放行
+        spec = remote.normalize({"protocol": "smb", "host": "h", "username": "",
+                                 "auth": "password", "path": ""}, path_optional=True)
+        self.assertEqual(spec["username"], "")
+        # 但 SSH 空用户名仍拦截
         with self.assertRaises(ValueError):
-            remote.normalize({"protocol": "ssh", "host": "h", "username": "u",
+            remote.normalize({"protocol": "ssh", "host": "h", "username": "",
                               "auth": "password", "path": "/x"})
 
     def test_missing_host(self):
@@ -245,14 +254,20 @@ class HttpEndToEndTest(unittest.TestCase):
         self.fail("拉取任务超时")
 
     def test_probe_reports_size_and_sample(self):
+        # probe 已改为纯连通性测试：不查文件、不取样本；文件清单交给浏览目录
         result = remote.probe({"protocol": "http", "host": "127.0.0.1", "port": self.port,
                                "path": "/access.log"})
         self.assertTrue(result["ok"])
-        self.assertEqual(result["files_total"], 1)
-        self.assertGreater(result["total_size"], 0)
-        self.assertGreater(result["est_lines"], 0)
-        self.assertEqual(len(result["sample"]), 3)
-        self.assertIn("GET /index.html", result["sample"][0])
+        self.assertIn("banner", result)
+        self.assertIn("elapsed", result)
+        self.assertNotIn("files_total", result)
+        self.assertNotIn("sample", result)
+
+    def test_probe_without_path_still_ok(self):
+        # 路径留空默认根目录，连通照样成功
+        result = remote.probe({"protocol": "http", "host": "127.0.0.1", "port": self.port})
+        self.assertTrue(result["ok"])
+        self.assertEqual(result["protocol"], "http")
 
     def test_pull_imports_rows(self):
         job = remote.start_pull({"protocol": "http", "host": "127.0.0.1", "port": self.port,

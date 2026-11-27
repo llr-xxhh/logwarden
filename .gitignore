@@ -24,3 +24,7 @@ _bench/
 # 系统
 Thumbs.db
 .DS_Store
+
+# PyInstaller 构建产物
+dist/
+build/

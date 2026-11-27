@@ -585,17 +585,17 @@
     ['ovStatus','ovHour','ovHourLb','ovIp','ovPath','topList','freqRows','tmHour','tmHourLb','baseCmd','baseExfil','baseRows','ipRows','ipInOut','ipErrTop','pathRows','uaRows','stCards','st4path','st5path','netRows','soRef'].forEach(function(id){var el=document.getElementById(id);if(el)el.innerHTML=''});
   };
 
-  renderAlerts=function(){
+  renderAlerts=function(force){
     if(!TASK_ID||!CURRENT)return;
     var source=CURRENT,taskId=TASK_ID,serial=++alertSerial;
-    document.getElementById('alertBox').innerHTML='<div class="alerts-empty">正在按当前生效规则计算…</div>';
-    api('/tasks/'+encodeURIComponent(taskId)+'/sources/'+encodeURIComponent(source.id)+'/alerts').then(function(data){
+    document.getElementById('alertBox').innerHTML='<div class="alerts-empty">'+(force?'正在重新检测（全量扫描规则匹配，覆盖上次结果）…':'正在读取检测结果…')+'</div>';
+    api('/tasks/'+encodeURIComponent(taskId)+'/sources/'+encodeURIComponent(source.id)+'/alerts'+(force?'?force=1':'')).then(function(data){
       if(serial!==alertSerial||taskId!==TASK_ID||!CURRENT||CURRENT.id!==source.id)return;
       ALERT_CACHE=data;
       var rows=data.rules.map(function(item){var g=workRules().filter(function(r){return r.id===item.rule.id})[0]||convertRule(item.rule);return {g:g,hits:item.hits,count:item.count}});
       var hiN=0,midN=0;rows.forEach(function(x){if(x.count){if(x.g.sev==='高')hiN++;else if(x.g.sev==='中')midN++}});
       var hitRules=rows.filter(function(x){return x.count}).length;
-      var sum='<div class="alerts-sum"><span>生效规则 <b>'+rows.length+'</b> 条</span><span>命中 <b>'+data.total+'</b> 条</span><span>有命中的规则 <b>'+hitRules+'</b> 条</span><span>高危 <b style="color:var(--red)">'+hiN+'</b> · 中危 <b style="color:var(--amber)">'+midN+'</b></span><span id="toRules">去规则管理 →</span></div>';
+      var sum='<div class="alerts-sum"><span>生效规则 <b>'+rows.length+'</b> 条</span><span>命中 <b>'+data.total+'</b> 条</span><span>有命中的规则 <b>'+hitRules+'</b> 条</span><span>高危 <b style="color:var(--red)">'+hiN+'</b> · 中危 <b style="color:var(--amber)">'+midN+'</b></span>'+(data.computed_at?'<span style="color:var(--faint)">检测于 '+esc(data.computed_at)+(data.cached?'（缓存）':'')+'</span>':'')+'<span id="recheck" title="忽略缓存，重新扫描全部日志">⟳ 重新检测</span><span id="toRules">去规则管理 →</span></div>';
       var body=rows.map(function(x){var g=x.g,hits=x.hits;
         return '<div class="rule-grp" data-rid="'+g.id+'"><div class="rule-hd"><span class="tag '+sevCls(g.sev)+'">'+esc(g.sev)+'</span><span class="nm">'+esc(g.name)+'</span><span class="cat">'+esc(g.cat||'')+'</span><span class="why">'+esc(g.why||'')+'</span><span class="toR" data-edit="'+g.id+'">规则</span><span class="n'+(x.count?'':' zero')+'">'+x.count+' 条命中</span></div>'+hits.slice(0,6).map(hitLine).join('')+(x.count>6?'<div class="hit" style="color:var(--faint);cursor:default">…共 '+x.count+' 条，界面仅展示前 6 条</div>':'')+'</div>';
       }).join('');
@@ -998,12 +998,12 @@
      凭据只在这次请求里带过去，不写 localStorage；进度靠轮询 job，不占连接。 */
   var R_PROTO='ssh',R_JOB=null,R_TIMER=null;
   var PROTO_CFG={
-    ssh:{port:22,path:'/var/log/nginx/access.log',hostLb:'主机',hostPh:'IP 或域名',
-         hostTip:'SSH 默认 22',pathTip:'支持通配 access.log-*，多个轮转文件按时间拼接'},
-    smb:{port:445,path:'C:\\Windows\\System32\\winevt\\Logs\\Security.evtx',hostLb:'主机',hostPh:'IP 或主机名',
-         hostTip:'SMB 默认 445',pathTip:'\\\\主机\\共享\\目录\\*.log，或 C:\\Windows\\... 自动转 UNC'},
-    http:{port:80,path:'/logs/access.log',hostLb:'主机 / URL',hostPh:'http://10.0.0.5:8080',
-         hostTip:'可带 scheme，走 HTTPS 就写 https://',pathTip:'URL 的路径部分；HTTP 不支持通配'}
+    ssh:{port:22,path:'',hostLb:'主机',hostPh:'IP 或域名',
+         hostTip:'SSH 默认 22',pathTip:'留空=浏览根目录 /；可填文件、目录（拉全部文件）或通配 access.log-*'},
+    smb:{port:445,path:'C:\\Windows\\System32\\winevt\\Logs',hostLb:'主机',hostPh:'IP 或主机名',
+         hostTip:'SMB 默认 445',pathTip:'预填 Windows 日志目录；清空 = 列出共享；也可填 \\\\主机\\共享\\目录 或别的目录（拉全部文件）'},
+    http:{port:80,path:'',hostLb:'主机 / URL',hostPh:'http://10.0.0.5:8080',
+         hostTip:'可带 scheme，走 HTTPS 就写 https://',pathTip:'留空=浏览根目录 /；尾斜杠=拉目录下全部文件（需服务器开目录列表）'}
   };
   function srcById(id){for(var i=0;i<SOURCES.length;i++)if(SOURCES[i].id===id)return SOURCES[i];return null}
   function remotePayload(){
@@ -1020,22 +1020,36 @@
     };
   }
   function applyProto(){
-    var cfg=PROTO_CFG[R_PROTO],http=R_PROTO==='http';
-    document.getElementById('rPort').value=cfg.port;
+    var cfg=PROTO_CFG[R_PROTO],http=R_PROTO==='http',smb=R_PROTO==='smb';
+    /* 同协议有上次成功连接的记忆 → 恢复端口/主机；没有 → 协议默认 */
+    var saved=null;
+    try{saved=JSON.parse(localStorage.getItem('lwRemoteConn')||'null')}catch(e){}
+    var same=saved&&saved.protocol===R_PROTO;
+    document.getElementById('rPort').value=same&&saved.port?saved.port:cfg.port;
+    if(same&&saved.host&&!document.getElementById('rHost').value.trim())
+      document.getElementById('rHost').value=saved.host;
+    if(same&&saved.username&&!document.getElementById('rUser').value.trim())
+      document.getElementById('rUser').value=saved.username;
     document.getElementById('rPath').value=cfg.path;
     document.getElementById('rPathTip').textContent=cfg.pathTip;
     document.getElementById('rHostTip').textContent=cfg.hostTip;
     document.getElementById('rHostLb').textContent=cfg.hostLb;
+    document.getElementById('smbHint').style.display=smb?'':'none';
     document.getElementById('rHost').placeholder=cfg.hostPh;
-    // HTTP 没有密钥和会话的区分，用户名密码就是 Basic 认证
-    document.getElementById('rAuthWrap').style.display=http?'none':'';
+    document.getElementById('rUser').placeholder=http?'Basic 认证账号（可空）':(smb?'远程账号（可空 = 匿名）':'远程账号');
+    /* 每个协议只亮自己用得到的字段：
+       SSH  = 认证方式（密码/密钥/复用会话）→ 密码 或 密钥文件+私钥
+       SMB  = 固定账号密码（无密钥/会话概念）
+       HTTP = 固定 Basic（账号密码可全空） */
+    document.getElementById('rAuthWrap').style.display=(http||smb)?'none':'';
     syncAuthFields();
   }
   function syncAuthFields(){
-    var mode=R_PROTO==='http'?'password':document.getElementById('rAuth').value;
-    document.getElementById('rPassWrap').style.display=mode==='password'?'':'none';
-    document.getElementById('rKeyWrap').style.display=mode==='key'?'':'none';
-    document.getElementById('rKeyTextWrap').style.display=mode==='key'?'':'none';
+    var http=R_PROTO==='http',smb=R_PROTO==='smb';
+    var mode=(http||smb)?'password':document.getElementById('rAuth').value;
+    document.getElementById('rPassWrap').style.display=(http||smb||mode==='password')?'':'none';
+    document.getElementById('rKeyWrap').style.display=(!http&&!smb&&mode==='key')?'':'none';
+    document.getElementById('rKeyTextWrap').style.display=(!http&&!smb&&mode==='key')?'':'none';
   }
   document.getElementById('proto').onclick=function(e){
     var box=e.target.closest?e.target.closest('[data-proto]'):null;if(!box)return;
@@ -1058,20 +1072,10 @@
     if(text!=null)document.getElementById('progTx').textContent=escLine(String(text));
   }
   function probeHtml(r){
-    var files=(r.files||[]).slice(0,8).map(function(f){
-      return '<div style="font-size:11.5px;color:var(--muted)">'+esc(f.name)+' · '+fmtSize(f.size)+'</div>';
-    }).join('');
-    if((r.files||[]).length>8)files+='<div style="font-size:11.5px;color:var(--faint)">…共 '+r.files_total+' 个</div>';
-    var sample=(r.sample||[]).map(function(l){
-      return '<div class="rc-code" style="margin:4px 0;padding:6px 8px">'+esc(l)+'</div>';
-    }).join('');
-    var notes=(r.notes||[]).map(function(n){
-      return '<div style="color:#92400e;font-size:11.5px">· '+esc(n)+'</div>';
-    }).join('');
-    return '<div><span class="ok">已连通</span> · '+esc(r.banner||r.target)+' · 耗时 '+r.elapsed+'s</div>'+
-      '<div style="margin-top:6px">文件 <span class="k">'+r.files_total+'</span> 个 · 共 <span class="k">'+fmtSize(r.total_size)+'</span> · 约 <span class="k">'+(r.est_lines||0).toLocaleString()+'</span> 行</div>'+
-      files+notes+
-      (sample?'<div style="margin-top:8px;font-size:11.5px;color:var(--muted)">前 '+r.sample.length+' 行</div>'+sample:'');
+    /* 只报连通结果一行；文件数/总量在下方目录列表的汇总里已经有了 */
+    var bt=r.banner||r.target;
+    try{bt=decodeURIComponent(bt)}catch(e){}
+    return '<span class="ok">已连通</span> · '+esc(bt)+' · 耗时 '+r.elapsed+'s';
   }
   document.getElementById('btnProbe').onclick=function(){
     var btn=this;if(btn.disabled)return;
@@ -1081,6 +1085,16 @@
     btn.disabled=true;box.className='probe on';box.innerHTML='<span class="k">连接中…</span>';
     api('/remote/probe',{method:'POST',json:data}).then(function(r){
       box.innerHTML=probeHtml(r);
+      /* 记住这次成功的连接参数（不含密码/密钥），下次刷新自动恢复 */
+      try{localStorage.setItem('lwRemoteConn',JSON.stringify({
+        protocol:R_PROTO,
+        host:document.getElementById('rHost').value.trim(),
+        port:document.getElementById('rPort').value.trim(),
+        username:document.getElementById('rUser').value.trim(),
+        auth:R_PROTO==='http'?'password':document.getElementById('rAuth').value
+      }))}catch(e){}
+      /* 探测成功直接展开目录浏览——主流程一步到位：连上→列表→勾选→拉取选中 */
+      rbBrowse(null);
     }).catch(function(e){
       box.className='probe on';box.innerHTML='<span class="bad">连接失败</span> · '+esc(e.message);
     }).then(function(){btn.disabled=false});
@@ -1116,8 +1130,7 @@
       });
     },400);
   }
-  document.getElementById('btnPull').onclick=function(){
-    var btn=this;if(btn.disabled)return;
+  function doPull(fileList){
     if(!requireTask())return;
     var sid=document.getElementById('rSource').value;
     if(!sid){toast('请选择归入哪个日志源');return}
@@ -1126,6 +1139,8 @@
     data.task_id=TASK_ID;data.source_id=sid;
     data.fmt=document.getElementById('rFmt').value;
     data.encoding=document.getElementById('rEncoding').value;
+    if(fileList&&fileList.length)data.files=fileList;
+    var btn=document.getElementById('btnPull');
     btn.disabled=true;
     document.getElementById('probeBox').className='probe';
     document.getElementById('progBox').className='prog on';
@@ -1133,12 +1148,88 @@
     api('/remote/pull',{method:'POST',json:data}).then(function(job){
       R_JOB=job.id;watchJob(job.id);
     }).catch(function(e){btn.disabled=false;document.getElementById('progBox').className='prog';toast(e.message)});
-  };
+  }
+  document.getElementById('btnPull').onclick=function(){doPull(null)};
   document.getElementById('btnCancel').onclick=function(){
     var btn=this;if(!R_JOB||btn.disabled)return;
     btn.disabled=true;
     api('/remote/jobs/'+encodeURIComponent(R_JOB)+'/cancel',{method:'POST'})
       .catch(function(e){toast(e.message)}).then(function(){btn.disabled=false});
+  };
+
+  /* ===== 远端目录浏览：列一层 → 勾选 → 只拉勾选的（SSH/SMB/HTTP 通用）=====
+     勾选只对当前目录有效，切目录即清空；要拉多个目录就分几次拉，行为可预期。 */
+  var RB={dir:null,parent:'',entries:[]};
+  function rbTime(t){
+    if(!t)return '';
+    var d=new Date(t*1000);function z(n){return (n<10?'0':'')+n}
+    return d.getFullYear()+'-'+z(d.getMonth()+1)+'-'+z(d.getDate())+' '+z(d.getHours())+':'+z(d.getMinutes());
+  }
+  function rbBrowse(dir){
+    var data=remotePayload();
+    if(!data.host){toast('请填写主机');return}
+    if(dir!=null)data.path=dir;
+    var list=document.getElementById('rlList');
+    document.getElementById('remoteListBox').style.display='';
+    list.innerHTML='<div style="padding:22px;text-align:center;color:var(--faint)">读取目录中…</div>';
+    document.getElementById('rlFoot').textContent='';
+    api('/remote/list',{method:'POST',json:data}).then(function(r){
+      RB.dir=r.path;RB.parent=r.parent||'';RB.entries=r.entries||[];
+      rbRender(r);
+    }).catch(function(e){
+      list.innerHTML='<div style="padding:22px;text-align:center;color:var(--red)">'+esc(e.message)+'</div>';
+    });
+  }
+  function rbRender(r){
+    /* HTTP 的 target 带路径，面包屑只显 path 避免重复；SSH/SMB target 是纯主机信息。
+       URL 编码的路径解码成中文再显示，解码失败原样展示 */
+    function dsp(s){try{return decodeURIComponent(String(s))}catch(e){return s}}
+    var showPath=dsp(r.path);
+    document.getElementById('rlCrumb').textContent=(r.protocol==='http'?'':dsp(r.target)+' · ')+showPath;
+    document.getElementById('rlUp').disabled=!RB.parent;
+    /* 表格式浏览：名称 / 类型 / 修改时间 / 大小，目录行点击进入 */
+    var html='<div class="rl-thead"><span>名称</span><span>类型</span><span>修改时间</span><span style="text-align:right">大小</span></div>';
+    if(RB.parent)html+='<div class="rl-trow up" data-up="1"><span class="nm">📁 ..</span><span class="ty">—</span><span class="mt">—</span><span class="sz">—</span></div>';
+    RB.entries.forEach(function(x,i){
+      var mt=x.mtime?rbTime(x.mtime):'—';
+      var showTitle=dsp(x.path);
+      if(x.is_dir){
+        html+='<div class="rl-trow dir" data-i="'+i+'" title="'+esc(showTitle)+'">'+
+          '<span class="nm">📁 '+esc(x.name)+'/</span><span class="ty">目录</span><span class="mt">'+mt+'</span><span class="sz">—</span></div>';
+      }else{
+        var ext=(x.name.split('.').pop()||'').toUpperCase();
+        if(!x.name||x.name.indexOf('.')<0)ext='文件';
+        html+='<div class="rl-trow" title="'+esc(showTitle)+'">'+
+          '<span class="nm"><input type="checkbox" data-p="'+esc(x.path)+'">'+esc(x.name)+'</span>'+
+          '<span class="ty">'+esc(ext)+'</span><span class="mt">'+mt+'</span><span class="sz">'+fmtSize(x.size||0)+'</span></div>';
+      }
+    });
+    if(!RB.entries.length&&!RB.parent)html+='<div style="padding:22px;text-align:center;color:var(--faint)">空目录</div>';
+    document.getElementById('rlList').innerHTML=html;
+    document.getElementById('rlFoot').textContent='目录 '+r.dirs+' · 文件 '+r.files+' · 共 '+fmtSize(r.total_size||0)+
+      ' · 勾选文件后点「拉取选中」；协议 '+r.protocol+'，耗时 '+r.elapsed+'s';
+  }
+  document.getElementById('btnBrowse').onclick=function(){rbBrowse(null)};
+  document.getElementById('rlRefresh').onclick=function(){if(RB.dir!=null)rbBrowse(RB.dir)};
+  document.getElementById('rlUp').onclick=function(){if(RB.parent)rbBrowse(RB.parent)};
+  document.getElementById('rlAll').onclick=function(){
+    var boxes=document.querySelectorAll('#rlList input[data-p]:not(:disabled)'),on=false;
+    boxes.forEach(function(cb){if(!cb.checked)on=true});
+    boxes.forEach(function(cb){cb.checked=on});
+  };
+  document.getElementById('rlList').addEventListener('click',function(e){
+    var row=e.target.closest?e.target.closest('.rl-trow'):null;
+    if(!row)return;
+    if(row.getAttribute('data-up')==='1'){if(RB.parent)rbBrowse(RB.parent);return}
+    if(!row.classList.contains('dir'))return;
+    var x=RB.entries[Number(row.getAttribute('data-i'))];
+    if(x&&x.is_dir)rbBrowse(x.path);
+  });
+  document.getElementById('rlPull').onclick=function(){
+    var picked=[];
+    document.querySelectorAll('#rlList input[data-p]:checked').forEach(function(cb){picked.push(cb.getAttribute('data-p'))});
+    if(!picked.length){toast('先勾选要拉取的文件');return}
+    doPull(picked);
   };
 
   function ntComponentsChecked(){

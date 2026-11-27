@@ -3,6 +3,7 @@ from __future__ import annotations
 
 import json
 import re
+import time
 import uuid
 from pathlib import Path
 from typing import Any, Iterable
@@ -11,9 +12,11 @@ from storage import Store, now_iso
 from services.query import QueryService
 from services import sql_rules
 
-ROOT = Path(__file__).resolve().parents[1]
-BUILTIN_DIR = ROOT / "rules" / "builtin"
-CUSTOM_DIR = ROOT / "rules" / "custom"
+from paths import APP, DATA
+
+ROOT = APP
+BUILTIN_DIR = APP / "rules" / "builtin"
+CUSTOM_DIR = DATA / "rules" / "custom"
 SEVERITIES = {"high", "medium", "low"}
 
 
@@ -676,8 +679,90 @@ class RuleEngine:
             result.append({"id": rule["id"], "name": rule["name"], "severity": rule["severity"], "hit": matches(rule, sample)})
         return result
 
-    def alerts(self, task_id: str, source_id: str) -> dict[str, Any]:
+    def alerts(self, task_id: str, source_id: str, force: bool = False) -> dict[str, Any]:
+        """威胁分析入口：结果落任务库缓存，指纹没变直接读库，不再每次全量重算。
+
+        指纹 = 启用规则集内容 hash + 该日志源行数。规则改动或数据增减任一变化
+        即自动重算；force=True（前端「重新检测」按钮）无条件重算并覆盖。
+        """
         self.queries.ensure_task_source(task_id, source_id)
+        if not force:
+            cached = self._alerts_cache_get(task_id, source_id)
+            if cached is not None:
+                cached["cached"] = True
+                return cached
+        result = self._alerts_compute(task_id, source_id)
+        result["cached"] = False
+        self._alerts_cache_put(task_id, source_id, result)
+        return result
+
+    def _alerts_fingerprint(self, task_id: str, source_id: str) -> tuple[str, int]:
+        """规则集 hash + 数据行数；任一变化即缓存失效。"""
+        import hashlib
+        kind = self.queries.kind(self.queries.source(source_id))
+        active = [r for r in self.rules.load() if r.get("enabled", True) and self.rules.applies(r, kind)]
+        rules_hash = hashlib.sha1(
+            json.dumps(active, sort_keys=True, ensure_ascii=False).encode("utf-8")).hexdigest()
+        config = self.queries.config_for(source_id)
+        conn = self.store.task_connection(task_id)
+        try:
+            try:
+                rows = conn.execute(
+                    "SELECT COUNT(*) FROM %s WHERE task_id = ? AND source_id = ?"
+                    % sql_rules.ident(config["table"]), [task_id, source_id]).fetchone()
+                data_version = int(list(rows.values())[0]) if rows else 0
+            except Exception:
+                # 表还没建（任务刚创建、还没导入任何日志）：按 0 行处理，
+                # 让威胁分析返回空结果而不是 500；导入后行数指纹变化自然重算
+                data_version = 0
+        finally:
+            conn.close()
+        return rules_hash, data_version
+
+    def _alerts_cache_get(self, task_id: str, source_id: str) -> dict[str, Any] | None:
+        try:
+            rules_hash, data_version = self._alerts_fingerprint(task_id, source_id)
+        except Exception:
+            return None
+        conn = self.store.task_connection(task_id)
+        try:
+            row = conn.execute(
+                "SELECT rules_hash, data_version, result_json, computed_at FROM alert_cache "
+                "WHERE source_id = ?", [source_id]).fetchone()
+        except Exception:
+            return None   # 缓存表还没建（该源从未算过）
+        finally:
+            conn.close()
+        if not row or row["rules_hash"] != rules_hash or int(row["data_version"] or 0) != data_version:
+            return None
+        try:
+            result = json.loads(row["result_json"])
+        except Exception:
+            return None
+        result["computed_at"] = str(row["computed_at"] or "")
+        return result
+
+    def _alerts_cache_put(self, task_id: str, source_id: str, result: dict[str, Any]) -> None:
+        """覆盖写缓存；算完的瞬间指纹可能又变（如正导入），存当时的指纹即可。"""
+        conn = self.store.task_connection(task_id)
+        try:
+            conn.execute(
+                "CREATE TABLE IF NOT EXISTS alert_cache (source_id VARCHAR, rules_hash VARCHAR, "
+                "data_version BIGINT, result_json VARCHAR, computed_at VARCHAR)")
+            rules_hash, data_version = self._alerts_fingerprint(task_id, source_id)
+            payload = json.dumps(
+                {k: v for k, v in result.items() if k not in ("cached", "computed_at")},
+                ensure_ascii=False)
+            computed_at = time.strftime("%Y-%m-%d %H:%M:%S")
+            conn.execute("DELETE FROM alert_cache WHERE source_id = ?", [source_id])
+            conn.execute(
+                "INSERT INTO alert_cache VALUES (?, ?, ?, ?, ?)",
+                [source_id, rules_hash, data_version, payload, computed_at])
+            result["computed_at"] = computed_at
+        finally:
+            conn.close()
+
+    def _alerts_compute(self, task_id: str, source_id: str) -> dict[str, Any]:
         kind = self.queries.kind(self.queries.source(source_id))
         active = [r for r in self.rules.load() if r.get("enabled", True) and self.rules.applies(r, kind)]
         output = [{"rule": r, "count": 0, "hits": []} for r in active]

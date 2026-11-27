@@ -1,6 +1,10 @@
 """Start the local service and open an isolated debug browser.
 
 Usage: python start.py [--browser auto|chrome|edge|firefox|none]
+
+打包为 exe 后（PyInstaller --noconsole），同一入口改为：
+进程内线程跑 uvicorn → 等健康 → 拉浏览器 → 主线程挂住保活；
+已有健康服务时只补开一个浏览器窗口然后退出，双击两次不会起两个服务。
 """
 from __future__ import annotations
 
@@ -10,12 +14,16 @@ import os
 import shutil
 import subprocess
 import sys
+import threading
 import time
 import urllib.request
 from pathlib import Path
 
-ROOT = Path(__file__).resolve().parent
-RUNTIME = ROOT / "runtime"
+from paths import APP as ROOT
+from paths import DATA
+
+FROZEN = getattr(sys, "frozen", False)
+RUNTIME = DATA / "runtime"
 RUNTIME.mkdir(exist_ok=True)
 
 
@@ -35,7 +43,7 @@ def notify_error(message: str) -> None:
         (RUNTIME / "last-error.txt").write_text(message, encoding="utf-8")
     except OSError:
         pass
-    if os.name != "nt" or not sys.executable.lower().endswith("pythonw.exe"):
+    if os.name != "nt" or not (FROZEN or sys.executable.lower().endswith("pythonw.exe")):
         return
     try:
         import ctypes
@@ -54,7 +62,8 @@ def healthy(port: int) -> bool:
         return False
 
 
-def start_service(port: int) -> subprocess.Popen | None:
+def start_service_detached(port: int) -> subprocess.Popen | None:
+    """源码模式：另起 python 子进程跑 app.py，服务独立于启动器长驻。"""
     if healthy(port):
         return None
     log_path = RUNTIME / "server.log"
@@ -77,6 +86,35 @@ def start_service(port: int) -> subprocess.Popen | None:
         if healthy(port):
             return process
         if process.poll() is not None:
+            raise RuntimeError("后端启动失败，请查看 runtime/server.log")
+        time.sleep(0.25)
+    raise RuntimeError("后端启动超时，请查看 runtime/server.log")
+
+
+def start_service_inproc(port: int) -> tuple[object, threading.Thread] | None:
+    """打包模式：进程内线程跑 uvicorn，服务随本进程存活。
+
+    返回 (server, thread) 以便主线程 join 保活；端口已被健康服务占用时
+    返回 None（双击第二次只补开浏览器）。
+    """
+    if healthy(port):
+        return None
+    import uvicorn
+
+    from app import app as fastapi_app
+
+    config = uvicorn.Config(fastapi_app, host="127.0.0.1", port=port, log_level="info")
+    server = uvicorn.Server(config)
+    thread = threading.Thread(target=server.run, name="uvicorn", daemon=True)
+    thread.start()
+    for _ in range(240):
+        if healthy(port):
+            (RUNTIME / "server.json").write_text(
+                json.dumps({"pid": os.getpid(), "port": port, "mode": "exe"}, indent=2),
+                encoding="utf-8",
+            )
+            return server, thread
+        if not thread.is_alive():
             raise RuntimeError("后端启动失败，请查看 runtime/server.log")
         time.sleep(0.25)
     raise RuntimeError("后端启动超时，请查看 runtime/server.log")
@@ -161,7 +199,9 @@ def start_browser(name: str, debug_port: int, url: str) -> tuple[str, str]:
 
 def check_deps() -> None:
     """换机回退到系统 Python 时，依赖多半还没装；提前查出来弹窗说清楚，
-    不让用户去 runtime\\server.log 里翻 ImportError。"""
+    不让用户去 runtime\\server.log 里翻 ImportError。打包版依赖已随包，跳过。"""
+    if FROZEN:
+        return
     import importlib.util
 
     required = {"duckdb": "duckdb", "fastapi": "fastapi", "uvicorn": "uvicorn", "multipart": "python-multipart"}
@@ -178,9 +218,25 @@ def main() -> None:
     parser.add_argument("--browser", choices=["auto", "chrome", "edge", "firefox", "none"], default="auto")
     parser.add_argument("--port", type=int, default=8766)
     parser.add_argument("--debug-port", type=int, default=9223)
+    parser.add_argument("--server-only", action="store_true", help="只起服务不开浏览器（配合停止脚本/测试）")
     args = parser.parse_args()
     check_deps()
-    start_service(args.port)
+
+    if FROZEN:
+        started = start_service_inproc(args.port)
+        url = "http://127.0.0.1:%d" % args.port
+        if started is None:
+            say("LogWarden 已在运行: " + url)
+        else:
+            say("LogWarden: " + url)
+        if not args.server_only and args.browser != "none":
+            name, executable = start_browser(args.browser, args.debug_port, url)
+            say("浏览器: %s (%s)" % (name, executable))
+        if started is not None:
+            started[1].join()  # 挂住主线程保活；服务停止/进程被杀时随之结束
+        return
+
+    start_service_detached(args.port)
     url = "http://127.0.0.1:%d" % args.port
     say("LogWarden: " + url)
     if args.browser != "none":
