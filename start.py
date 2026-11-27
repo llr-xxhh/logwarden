@@ -24,7 +24,20 @@ from paths import DATA
 
 FROZEN = getattr(sys, "frozen", False)
 RUNTIME = DATA / "runtime"
-RUNTIME.mkdir(exist_ok=True)
+RUNTIME.mkdir(parents=True, exist_ok=True)
+
+if FROZEN and (sys.stdout is None or sys.stderr is None):
+    # windowed exe（--noconsole）里 stdout/stderr 是 None：uvicorn 的
+    # ColourizedFormatter 会调 sys.stdout.isatty() 直接 AttributeError，
+    # logging StreamHandler 也会拿 None 崩。兜底成日志文件——顺便让
+    # 以后用户机器上的崩溃 traceback 落到文件，弹窗之外可追查。
+    # onefile 每次启动 _MEIPASS 不同，追加模式；按进程分开文件避免互锁。
+    _tag = "onefile" if getattr(sys, "_MEIPASS", None) else "onedir"
+    try:
+        _log = open(RUNTIME / ("stdout-%s.log" % _tag), "a", buffering=1, encoding="utf-8")
+        sys.stdout = sys.stderr = _log
+    except OSError:
+        pass
 
 
 def say(text: str) -> None:
@@ -103,7 +116,8 @@ def start_service_inproc(port: int) -> tuple[object, threading.Thread] | None:
 
     from app import app as fastapi_app
 
-    config = uvicorn.Config(fastapi_app, host="127.0.0.1", port=port, log_level="info")
+    config = uvicorn.Config(fastapi_app, host="127.0.0.1", port=port, log_level="info",
+                            use_colors=False)
     server = uvicorn.Server(config)
     thread = threading.Thread(target=server.run, name="uvicorn", daemon=True)
     thread.start()
@@ -161,7 +175,7 @@ def start_browser(name: str, debug_port: int, url: str) -> tuple[str, str]:
         found_any = True
         executable = paths[0]
         profile = RUNTIME / ("browser-" + candidate)
-        profile.mkdir(exist_ok=True)
+        profile.mkdir(parents=True, exist_ok=True)
         if candidate == "firefox":
             args = [executable, "--remote-debugging-port", str(debug_port), "--profile", str(profile), "--new-window", url]
         else:
