@@ -2165,7 +2165,7 @@ function renderFilterBar(){
   a.addEventListener('change',function(e){
     var k=e.target.getAttribute&&e.target.getAttribute('data-fk');
     if(!k)return;
-    state.fk[k]=e.target.value;state.page=1;renderTable();
+    state.fk[k]=e.target.value;reloadPage(1);
   });
 })();
 function switchSource(id){
@@ -2511,9 +2511,10 @@ function tsPass(ts,from,to){
   return true;
 }
 function renderTable(){
-  var data=filtered(),total=data.length,pages=Math.max(1,Math.ceil(total/state.size));
-  if(state.page>pages)state.page=pages;
-  var page=data.slice((state.page-1)*state.size,state.page*state.size);
+  /* 浏览页数据来自服务端分页（CURRENT.page_data），筛选/排序已下推后端 */
+  var pd=CURRENT&&CURRENT.page_data;
+  var page=pd?pd.rows:[],total=pd?pd.total:0,pages=pd?Math.max(1,pd.pages):1;
+  var cur=pd?pd.page:1;
   var vis=visCols();
   document.getElementById('logCols').innerHTML=vis.map(function(c){
     return '<col'+(COLSTATE.manual?' style="width:'+(COLSTATE.width[c.k]||c.w)+'px"':'')+'>'
@@ -2529,13 +2530,13 @@ function renderTable(){
   document.getElementById('rows').innerHTML=page.map(function(l){
     var cls=l.crit?'crit':((l.flags&&l.flags.length)?'flag':'');
     return '<tr class="'+cls+'" data-id="'+(l.id==null?'':esc(String(l.id)))+'" title="双击查看原始内容">'+vis.map(function(c){return cellHTML(c.k,l)}).join('')+'</tr>'
-  }).join('')||'<tr><td colspan="'+vis.length+'" style="padding:40px;text-align:center;color:var(--faint)">无匹配结果</td></tr>';
-  document.getElementById('pinfo').textContent='共 '+total+' 条（原始 '+LOGS.length+' 条）';
+  }).join('')||'<tr><td colspan="'+vis.length+'" style="padding:40px;text-align:center;color:var(--faint)">'+(CURRENT&&!CURRENT.loaded?'正在后台加载全量数据，浏览不受影响…':'无匹配结果')+'</td></tr>';
+  document.getElementById('pinfo').textContent='共 '+total+' 条';
   document.getElementById('pageTotal').textContent=pages;
   var jump=document.getElementById('pageJump');
-  if(jump&&document.activeElement!==jump&&jump.value!==String(state.page))jump.value=state.page;
-  document.getElementById('prev').disabled=state.page<=1;document.getElementById('next').disabled=state.page>=pages;
-  document.getElementById('fcount').textContent=regexSyntaxError(state.q)?'正则语法错误，请检查搜索表达式':'过滤后 '+total+' / '+LOGS.length+' 条';
+  if(jump&&document.activeElement!==jump&&jump.value!==String(cur))jump.value=cur;
+  document.getElementById('prev').disabled=cur<=1;document.getElementById('next').disabled=cur>=pages;
+  document.getElementById('fcount').textContent=regexSyntaxError(state.q)?'正则语法错误，请检查搜索表达式':'共 '+total+' 条（当前页 '+(pd?page.length:0)+' 行）';
   bindGrips();
   applyColWidths();
 }
@@ -2665,7 +2666,7 @@ function applyFilterPanel(){
     next.to=to.value.trim();
   }
   if(Object.keys(next).length)state.colf[k]=next;else delete state.colf[k];
-  state.page=1;renderTable();closeFilterPanel();
+  reloadPage(1);closeFilterPanel();
 }
 (function(){
   var fp=document.getElementById('fpanel');
@@ -2684,7 +2685,7 @@ function applyFilterPanel(){
     var act=t.getAttribute&&t.getAttribute('data-act');
     if(!act)return;
     if(act==='asc'||act==='desc'){
-      state.sort={k:FP.k,dir:act==='asc'?1:-1};state.page=1;renderTable();closeFilterPanel();return;
+      state.sort={k:FP.k,dir:act==='asc'?1:-1};reloadPage(1);closeFilterPanel();return;
     }
     if(act==='all'){FP.sel=null;fpRenderList();return}
     if(act==='none'){FP.sel=[];fpRenderList();return}
@@ -2696,7 +2697,7 @@ function applyFilterPanel(){
       }
       fpRenderList();return;
     }
-    if(act==='clear'){delete state.colf[FP.k];state.page=1;renderTable();closeFilterPanel();return}
+    if(act==='clear'){delete state.colf[FP.k];reloadPage(1);closeFilterPanel();return}
     if(act==='cancel'){closeFilterPanel();return}
     if(act==='ok'){applyFilterPanel();return}
   });
@@ -2738,7 +2739,7 @@ function applyFilterPanel(){
       if(state.sort.dir>0)state.sort={k:k,dir:-1};
       else state.sort={k:'',dir:1};
     }else state.sort={k:k,dir:1};
-    state.page=1;renderTable();
+    reloadPage(1);
   });
 })();
 /* 单击单元格复制 */
@@ -3120,7 +3121,7 @@ function altJump(v){
   var i=v.indexOf(':'),k=v.slice(0,i),val=v.slice(i+1);
   state.q=(k==='ip'||k==='q')?val:'';
   var qi=document.getElementById('q');if(qi)qi.value=state.q;
-  state.page=1;renderTable();showPage('logs');
+  reloadPage(1);showPage('logs');
 }
 
 function renderStatsAlt(){
@@ -4040,12 +4041,12 @@ function jump(magic){
   if(kind==='ip'||kind==='q'){
     document.getElementById('q').value=val;state.q=val;state.page=1;
     document.getElementById('status').value='';state.status='';
-    showPage('logs');renderTable();
+    showPage('logs');reloadPage(1);
   }else if(kind==='status'){
     document.getElementById('q').value='';state.q='';state.focusId=null;
     document.getElementById('status').value='';state.status='';
     state.colf.status={vals:[String(val)]};
-    state.page=1;showPage('logs');renderTable();
+    showPage('logs');reloadPage(1);
   }
 }
 document.addEventListener('click',function(e){
@@ -4053,25 +4054,32 @@ document.addEventListener('click',function(e){
   if(t)jump(t.getAttribute('data-jump'));
 });
 
-/* ================= 过滤器 ================= */
+/* ================= 过滤器 =================
+   筛选/搜索/排序全部下推服务端（reloadPage 只拉当前页 500 行）；
+   搜索框连续输入做 400ms 防抖，避免逐键打后端 */
+var qTimer=null;
 ['q','status','exStatic','ex404','exProbe'].forEach(function(id){
   var el=document.getElementById(id);el.oninput=el.onchange=function(){
-    state[id]=(id.indexOf('ex')===0)?el.checked:el.value;state.page=1;renderTable()}
+    state[id]=(id.indexOf('ex')===0)?el.checked:el.value;
+    if(qTimer)clearTimeout(qTimer);
+    qTimer=setTimeout(function(){reloadPage(1)},400)}
 });
 document.getElementById('reset').onclick=function(){
   document.getElementById('q').value='';document.getElementById('status').value='';
   ['exStatic','ex404','exProbe'].forEach(function(x){document.getElementById(x).checked=false});
   state.q='';state.status='';state.exStatic=state.ex404=state.exProbe=false;state.focusId=null;
-  state.fk={};state.colf={};state.sort={k:'',dir:1};state.page=1;
+  state.fk={};state.colf={};state.sort={k:'',dir:1};
   document.querySelectorAll('#filterAlt select').forEach(function(x){x.value=''});
-  renderTable()};
-document.getElementById('prev').onclick=function(){if(state.page>1){state.page--;renderTable()}};
-document.getElementById('next').onclick=function(){state.page++;renderTable()};
-/* 跳页：只管把页码交给 renderTable，超范围由它 clamp 回有效页；非数字恢复当前页 */
+  reloadPage(1)};
+document.getElementById('prev').onclick=function(){var pd=CURRENT&&CURRENT.page_data;if(pd&&pd.page>1)reloadPage(pd.page-1)};
+document.getElementById('next').onclick=function(){var pd=CURRENT&&CURRENT.page_data;if(pd&&pd.page<pd.pages)reloadPage(pd.page+1)};
+/* 跳页：超范围钳到末页（页数来自服务端），非数字恢复当前页 */
 function jumpToPage(){
   var el=document.getElementById('pageJump'),v=parseInt(el.value,10);
-  if(isNaN(v)||v<1){el.value=state.page;return}
-  state.page=v;renderTable();el.value=state.page;
+  var pd=CURRENT&&CURRENT.page_data;
+  if(isNaN(v)||v<1){if(pd)el.value=pd.page;return}
+  if(pd&&v>pd.pages)v=pd.pages;
+  reloadPage(v);el.value=v;
 }
 document.getElementById('jumpBtn').onclick=jumpToPage;
 document.getElementById('pageJump').onkeydown=function(e){if(e.key==='Enter')jumpToPage()};
@@ -4307,11 +4315,15 @@ window.addEventListener('resize',applyColWidths);
     var h=e.target.closest?e.target.closest('.hit[data-ts]'):null;
     if(!h)return;
     var id=h.getAttribute('data-id'),l=null;
-    if(id!==null){LOGS.forEach(function(x){if(String(x.id)===id)l=x})}
+    if(id!==null){
+      // 优先从当前页找；全量若已就绪再兜底全量——行 id 服务端唯一，直接聚焦即可
+      (CURRENT&&CURRENT.page_data?CURRENT.page_data.rows:[]).forEach(function(x){if(String(x.id)===id)l=x});
+      if(!l&&LOGS.length){LOGS.forEach(function(x){if(String(x.id)===id)l=x})}
+    }
     if(!l){toast('聚合命中请按来源、路径和时间窗口筛选；该卡片不对应单一原始行');return}
-    state.q='';state.status='';state.fk={};state.colf={};state.exStatic=state.ex404=state.exProbe=false;state.focusId=l.id;
+    state.q='';state.status='';state.fk={};state.colf={};state.exStatic=state.ex404=state.exProbe=false;state.focusId=(l&&l.id!=null)?l.id:id;
     var qi=document.getElementById('q');if(qi)qi.value='';
-    showPage('logs');state.page=1;renderTable();
+    showPage('logs');reloadPage(1);
   });
 })();
 function updateAlertBadge(){

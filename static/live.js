@@ -238,58 +238,107 @@
     return extra.length?base.concat(extra):base;
   }
 
+  /* 浏览页请求体：筛选/排序全部下推服务端，只取当前页 500 行。
+     focusId（单击单元格聚焦）优先——原 filtered() 语义就是聚焦时忽略其它筛选 */
+  function browseBody(page){
+    var web=CURRENT&&CURRENT.kind==='web';
+    var body={source_id:CURRENT.id,size:500,page:Math.max(1,page||1),count:true};
+    body.sort=(state.sort&&state.sort.k)?{k:state.sort.k,dir:state.sort.dir||1}:{k:'id',dir:1};
+    if(state.focusId!=null){body.fk={id:String(state.focusId)};return body}
+    if(state.q)body.q=state.q;
+    if(web){
+      if(state.status)body.status=state.status;
+      if(state.ex404)body.ex404=true;
+      if(state.exStatic)body.exStatic=true;
+      if(state.exProbe)body.exProbe=true;
+    }else{
+      var fk={};for(var k in state.fk){if(state.fk[k])fk[k]=state.fk[k]}
+      if(Object.keys(fk).length)body.fk=fk;
+    }
+    var colf={};
+    for(var ck in state.colf){
+      var f=state.colf[ck];if(!cfActive(f))continue;
+      var c={};
+      if(ck==='ts'){if(f.from)c.from=parseTimeInput(f.from);if(f.to)c.to=parseTimeInput(f.to)}
+      else{if(f.vals)c.vals=f.vals;if(f.q&&f.q.trim())c.q=f.q.trim()}
+      if(Object.keys(c).length)colf[ck]=c;
+    }
+    if(Object.keys(colf).length)body.colf=colf;
+    return body;
+  }
+  /* 浏览页刷新：翻页/跳页/排序/筛选都走这里，只拉目标页 */
+  reloadPage=function(page){
+    if(!CURRENT||!TASK_ID)return Promise.resolve();
+    var source=CURRENT,serial=loadSerial;
+    var cell=document.getElementById('rows');
+    if(cell)cell.innerHTML='<tr><td colspan="12" style="padding:28px;text-align:center;color:var(--faint)">查询中…</td></tr>';
+    return api('/tasks/'+encodeURIComponent(TASK_ID)+'/query',{method:'POST',json:browseBody(page)}).then(function(r){
+      if(serial!==loadSerial||!CURRENT||CURRENT.id!==source.id)return;
+      source.page_data={rows:r.rows||[],total:r.total||0,page:r.page||page,pages:r.pages||1};
+      renderTable();
+    }).catch(function(e){toast('查询失败：'+e.message)});
+  };
   function loadCurrentRows(){
     if(!CURRENT)return Promise.resolve();
     var source=CURRENT,serial=++loadSerial,taskId=TASK_ID;
     ++alertSerial;ALERT_CACHE=null;document.getElementById('navAlert').textContent='0';
-    source.rows=[];source.loaded=false;LOGS=source.rows;
-    renderSrcBar();document.getElementById('rows').innerHTML='<tr><td style="padding:36px;text-align:center;color:var(--faint)">正在读取 '+esc(source.name)+' …</td></tr>';
+    source.rows=[];source.loaded=false;source.page_data=null;LOGS=source.rows;
+    renderSrcBar();
+    /* 阶段1：浏览页第一页（500 行）立即渲染，不等全量 */
+    api('/tasks/'+encodeURIComponent(taskId)+'/query',{method:'POST',json:browseBody(1)}).then(function(r){
+      if(serial!==loadSerial||taskId!==TASK_ID||!CURRENT||CURRENT.id!==source.id)return;
+      source.page_data={rows:r.rows||[],total:r.total||0,page:r.page||1,pages:r.pages||1};
+      COLS=mergeCols(source.cols,r.schema,source);
+      COLSTATE=initColState(COLS,source.id,defHiddenFor(source.id,source.kind,COLS));
+      CMPKIND={};
+      if(!colDef(topDim))topDim='ip';
+      state.page=1;state.q='';state.status='';state.fk={};state.colf={};state.sort={k:'',dir:1};state.focusId=null;
+      var qi=document.getElementById('q');if(qi)qi.value='';
+      renderSrcBar();renderFilterBar();renderTable();renderFormatBox();
+      var current=document.querySelector('.page.on');showPage(current?current.id.replace('p-',''):'dash');
+    }).catch(function(e){
+      if(serial!==loadSerial||taskId!==TASK_ID)return;
+      LOGS=[];source.rows=[];source.loaded=false;
+      document.getElementById('alertBox').innerHTML='<div class="alerts-empty">日志读取失败，未显示其它来源的旧结果</div>';
+      toast('读取日志失败：'+e.message);document.getElementById('rows').innerHTML='<tr><td style="padding:36px;text-align:center;color:var(--red)">'+esc(e.message)+'</td></tr>';
+    });
+    /* 阶段2：后台静默拉全量（仪表盘/数据分析/筛选面板选项统计需要），
+       不阻塞浏览页；完成后若停在相关页面自动刷新统计 */
     var PAGE=5000,total=0,schema=null;
     function stale(){return serial!==loadSerial||taskId!==TASK_ID||!CURRENT||CURRENT.id!==source.id}
     function bodyFor(cursor,first){
       var body={source_id:source.id,size:PAGE,sort:{k:'id',dir:1}};
       if(cursor!=null){body.cursor=cursor}else{body.page=1}
-      // 续页不需要 total（每页算一次 COUNT(*) 等于把整表数 55 遍），
-      // 也不需要 raw 原文（占响应 70%+）；首屏那份保留，模板样本等功能要用
       if(!first){body.count=false;body.omit=['raw']}
       return body;
-    }
-    function finish(){
-      source.rows.sort(function(a,b){if(a.ts==null)return 1;if(b.ts==null)return -1;return a.ts-b.ts||a.id-b.id});
-      markServerRows(source.rows,source.detect);source.loaded=true;
-      LOGS=source.rows;COLS=mergeCols(source.cols,schema,source);COLSTATE=initColState(COLS,source.id,defHiddenFor(source.id,source.kind,COLS));
-      CMPKIND={};
-      // 换源后原维度可能已不存在（比如从 nginx 切到 syslog），退回默认，否则排行全是 "-"
-      if(!colDef(topDim))topDim='ip';
-      state.page=1;state.q='';state.status='';state.fk={};state.colf={};state.sort={k:'',dir:1};state.focusId=null;
-      var qi=document.getElementById('q');if(qi)qi.value='';
-      renderSrcBar();renderFilterBar();renderAll();renderFormatBox();
-      var current=document.querySelector('.page.on');showPage(current?current.id.replace('p-',''):'dash');
     }
     function fetchPage(cursor,first){
       return api('/tasks/'+encodeURIComponent(taskId)+'/query',{method:'POST',json:bodyFor(cursor,first)});
     }
-    // 游标顺序加载：每页恒定 ~9ms（OFFSET 深分页递增到 200ms+）。
-    // 不再并发——游标是链式的，且单页 5000 行时总往返数已足够少。
+    function fullDone(){
+      if(stale())return;
+      source.rows.sort(function(a,b){if(a.ts==null)return 1;if(b.ts==null)return -1;return a.ts-b.ts||a.id-b.id});
+      markServerRows(source.rows,source.detect);source.loaded=true;
+      LOGS=source.rows;
+      // 全量就绪：停留在统计类页面的话重刷（浏览页不受影响）
+      var on=document.querySelector('.page.on');
+      if(!on)return;
+      var pid=on.id;
+      if(pid==='p-dash')renderDash();
+      else if(pid==='p-stats')renderStats();
+      else if(pid==='p-arch')renderArch();
+    }
     return fetchPage(null,true).then(function page_loop(page){
       if(stale())return null;
       if(page.schema)schema=page.schema;
       if(page.total!=null)total=page.total;
       if(page.rows&&page.rows.length)source.rows=source.rows.concat(page.rows);
-      var loaded=source.rows.length;
-      var cell=document.getElementById('rows');
-      if(cell&&loaded<total)cell.innerHTML='<tr><td style="padding:36px;text-align:center;color:var(--faint)">正在读取 '+esc(source.name)+' … '+loaded+' / '+total+'</td></tr>';
       if(page.next_cursor!=null&&!stale()){
         return fetchPage(page.next_cursor,false).then(page_loop);
       }
-      if(!stale())finish();
+      fullDone();
       return null;
-    }).catch(function(e){
-      if(serial!==loadSerial||taskId!==TASK_ID)return;
-      LOGS=[];source.rows=[];source.loaded=false;renderSrcBar();renderDash();
-      document.getElementById('alertBox').innerHTML='<div class="alerts-empty">日志读取失败，未显示其它来源的旧结果</div>';
-      toast('读取日志失败：'+e.message);document.getElementById('rows').innerHTML='<tr><td style="padding:36px;text-align:center;color:var(--red)">'+esc(e.message)+'</td></tr>';
-    });
+    }).catch(function(){ if(!stale())source.loaded=true; });
   }
   switchSource=function(id){
     var next=null;SOURCES.forEach(function(s){if(s.id===id)next=s});
@@ -560,9 +609,12 @@
   renderDash=function(){
     if(!LOGS.length){
       ['dc1','dc2','dashAlert','dc4'].forEach(function(id){document.getElementById(id).textContent='0'});
-      document.getElementById('dc1f').textContent='当前源暂无数据 · 全任务 '+taskMeta().total.toLocaleString()+' 条';
+      var loading=CURRENT&&!CURRENT.loaded&&CURRENT.page_data;
+      document.getElementById('dc1f').textContent=loading?'全量数据后台加载中…':'当前源暂无数据 · 全任务 '+taskMeta().total.toLocaleString()+' 条';
       document.getElementById('dc2f').textContent='—';document.getElementById('dc3f').textContent='—';document.getElementById('dc4f').textContent='—';
-      document.getElementById('dashSummary').innerHTML='<div class="summary-line">当前日志源暂无数据，请先导入或切换其他日志源。</div>';
+      document.getElementById('dashSummary').innerHTML=loading
+        ?'<div class="summary-line">正在后台加载全量日志（浏览页不受影响），完成后仪表盘统计自动刷新。</div>'
+        :'<div class="summary-line">当前日志源暂无数据，请先导入或切换其他日志源。</div>';
       document.getElementById('dashHour').innerHTML='';document.getElementById('dashIp').innerHTML='';document.getElementById('dashList').innerHTML='';document.getElementById('dashPeakNote').textContent='';renderArch();return;
     }
     legacy.dash();
@@ -665,7 +717,7 @@
     var text=document.getElementById('fmtTemplate').value;
     var out=document.getElementById('fmtResult');
     if(!text.trim()){out.innerHTML='<div class="merr">先粘贴 log_format 再点识别</div>';return}
-    var sample=LOGS.length?LOGS[0].raw:'';
+    var sample=(CURRENT&&CURRENT.page_data&&CURRENT.page_data.rows.length)?CURRENT.page_data.rows[0].raw:(LOGS.length?LOGS[0].raw:'');
     api('/formats/preview',{method:'POST',json:{template:text,text:sample}}).then(function(r){
       var html='<div style="font-size:11.5px;line-height:1.9">识别到 <b>'+r.fields.length+'</b> 个字段：'+formatFieldsHTML(r.fields);
       if(r.extra&&r.extra.length)html+='<div style="color:var(--muted);margin-top:2px">其中 '+r.extra.length+' 个是模板自带的变量，导入时会各建一列，可用于统计与筛选：'+esc(r.extra.join('、'))+'</div>';
