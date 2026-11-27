@@ -258,6 +258,7 @@
       source.rows.sort(function(a,b){if(a.ts==null)return 1;if(b.ts==null)return -1;return a.ts-b.ts||a.id-b.id});
       markServerRows(source.rows,source.detect);source.loaded=true;
       LOGS=source.rows;COLS=mergeCols(source.cols,schema,source);COLSTATE=initColState(COLS,source.id,defHiddenFor(source.id,source.kind,COLS));
+      CMPKIND={};
       // 换源后原维度可能已不存在（比如从 nginx 切到 syslog），退回默认，否则排行全是 "-"
       if(!colDef(topDim))topDim='ip';
       state.page=1;state.q='';state.status='';state.fk={};state.colf={};state.sort={k:'',dir:1};state.focusId=null;

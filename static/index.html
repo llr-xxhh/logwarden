@@ -113,6 +113,9 @@ table{width:100%;border-collapse:separate;border-spacing:0;font-size:13px;table-
 #p-stats .tblwrap table{width:100%;min-width:max-content}
 #p-stats tbody td{max-width:360px}
 thead th{position:sticky;top:0;background:#f1f5f9;text-align:left;padding:11px 14px;font-weight:600;color:var(--muted);font-size:11.5px;border-bottom:2px solid var(--border);z-index:2;white-space:nowrap;letter-spacing:.3px;text-transform:uppercase}
+#logTable thead th{cursor:pointer;user-select:none}
+#logTable thead th:hover{color:var(--dark)}
+#logTable thead th .fbtn{cursor:pointer}
 #logWrap{overflow:auto;max-height:calc(100vh - 262px)}
 .resize-hint{font-size:11.5px;color:var(--faint);margin-right:10px}
 .colpick{position:relative}
@@ -967,7 +970,7 @@ tbody tr.clk{cursor:pointer}
         <tbody id="rows"></tbody>
       </table>
       </div>
-      <div class="pager"><span id="pinfo"></span><div class="btns"><span class="resize-hint">列宽随内容自适应 · 点表头漏斗筛选 · 单击单元格复制</span><button id="prev">上一页</button><button id="next">下一页</button></div></div>
+      <div class="pager"><span id="pinfo"></span><div class="btns"><span class="resize-hint">点列头排序（升→降→取消）· 漏斗筛选 · 单击单元格复制</span><button id="prev">上一页</button><button id="next">下一页</button></div></div>
     </div>
 
     <!-- ============ 数据分析 ============ -->
@@ -1824,6 +1827,46 @@ function regexSyntaxError(q){
   var end=q.lastIndexOf('/');if(end<1||!/^[gimsuy]*$/.test(q.slice(end+1)))return false;
   try{new RegExp(q.slice(1,end),q.slice(end+1));return false}catch(e){return true}
 }
+/* ===== 排序比较器 =====
+   数值列（内置 ts/bytes/eventId/pid/status、模板 num 列、采样全为数字的动态列）
+   必须按数值比较：字符串 localeCompare 会把 "100000" 排在 "99999" 前面
+   （GitHub issue #1：processId 升序拿到 1144 而真正的 4 排在后面）。
+   空值（null/''）无论升降序都沉底，与后端 NULLS LAST 语义对齐。 */
+var NUMCOL_FIX={ts:1,bytes:1,eventId:1,pid:1,status:1};
+var CMPKIND={};
+function colIsNum(k){
+  if(CMPKIND[k]!=null)return CMPKIND[k];
+  var r=!!NUMCOL_FIX[k];
+  if(!r){
+    var c=colDef(k);
+    if(c&&c.num)r=true;
+    else{
+      var tot=0,n=0;
+      for(var i=0;i<LOGS.length&&tot<300;i++){
+        var v=LOGS[i][k];
+        if(v==null||v==='')continue;
+        tot++;
+        if(typeof v==='number'||/^-?\d+(\.\d+)?$/.test(String(v)))n++;
+      }
+      r=tot>0&&n===tot;
+    }
+  }
+  CMPKIND[k]=r;return r;
+}
+function colCmp(k,dir){
+  var num=colIsNum(k);
+  return function(a,b){
+    var va=k==='flags'?(a.flags||[]).map(function(f){return f[0]}).join(' '):a[k];
+    var vb=k==='flags'?(b.flags||[]).map(function(f){return f[0]}).join(' '):b[k];
+    var ea=(va==null||va===''),eb=(vb==null||vb==='');
+    if(ea&&eb)return (a.id||0)-(b.id||0);
+    if(ea)return 1;
+    if(eb)return -1;
+    var r=num?((va-vb)||String(va).localeCompare(String(vb),'zh-CN')||(a.id||0)-(b.id||0))
+             :(String(va).localeCompare(String(vb),'zh-CN')||(a.id||0)-(b.id||0));
+    return r*dir;
+  };
+}
 function filtered(){
   var web=CURRENT?CURRENT.kind==='web':false;
   var colf=state.colf;
@@ -1868,14 +1911,7 @@ function filtered(){
     return true
   });
   var sk=state.sort&&state.sort.k;
-  if(sk){
-    var dir=state.sort.dir||1;
-    out=out.sort(function(a,b){
-      if(sk==='ts'||sk==='bytes')return (a[sk]-b[sk])*dir;
-      var va=fieldVal(a,sk),vb=fieldVal(b,sk);
-      return va.localeCompare(vb,'zh-CN')*dir;
-    });
-  }
+  if(sk)out=out.sort(colCmp(sk,state.sort.dir||1));
   return out;
 }
 
@@ -2079,7 +2115,7 @@ function switchSource(id){
   if(!s||s.id===CURRENT.id)return;
   CURRENT=s;LOGS=s.rows;COLS=s.cols;
   COLSTATE=initColState(s.cols,s.id,defHiddenFor(s.id));
-  state.page=1;state.q='';state.status='';state.fk={};state.colf={};state.sort={k:'',dir:1};
+  CMPKIND={};state.page=1;state.q='';state.status='';state.fk={};state.colf={};state.sort={k:'',dir:1};
   var qi=document.getElementById('q');if(qi)qi.value='';
   var st=document.getElementById('status');if(st)st.value='';
   renderSrcBar();renderFilterBar();renderTable();renderStats();renderDash();
@@ -2428,7 +2464,7 @@ function renderTable(){
     var on=cfActive(state.colf[c.k]);
     var sum=cfSummary(c.k);
     var sa=(state.sort&&state.sort.k===c.k)?(state.sort.dir>0?' ↑':' ↓'):'';
-    return '<th data-k="'+c.k+'"><span class="thw"><span>'+c.lb+sa+'</span>'+
+    return '<th data-k="'+c.k+'" title="点击列头排序（升 → 降 → 取消），漏斗按钮打开筛选"><span class="thw"><span>'+c.lb+sa+'</span>'+
       '<button class="fbtn'+(on?' on':'')+'" data-fk="'+c.k+'" title="'+esc(on?('已筛选：'+sum):('筛选「'+c.lb+'」'))+'">'+
       '<svg viewBox="0 0 10 10"><path d="M1.1 2.1h7.8L6.1 5.3v3.4L3.9 7.5V5.3z"/></svg></button></span></th>'
   }).join('');
@@ -2450,7 +2486,7 @@ function colValueStats(k){
     if(k==='flags'){(l.flags||[]).forEach(function(f){add(f[0])});return}
     add(fieldVal(l,k));
   });
-  return arr.sort(function(a,b){return b.n-a.n||String(a.v).localeCompare(String(b.v),'zh-CN')});
+  return arr.sort(function(a,b){return b.n-a.n||(colIsNum(k)?(a.v-b.v||String(a.v).localeCompare(String(b.v),'zh-CN')):String(a.v).localeCompare(String(b.v),'zh-CN'))});
 }
 var FP={k:null,anchor:null,stats:[],sel:null};
 function fpAll(){return FP.stats.map(function(x){return x.v})}
@@ -2620,17 +2656,28 @@ function applyFilterPanel(){
   var lw=document.getElementById('logWrap');
   if(lw)lw.addEventListener('scroll',function(){if(FP.k)closeFilterPanel()},{passive:true});
 })();
-/* 表头漏斗按钮 */
+/* 表头交互：点漏斗 = 列筛选面板；点表头其余区域 = 排序循环（升 → 降 → 取消） */
 (function(){
   var head=document.getElementById('logHead');
   if(!head)return;
   head.addEventListener('click',function(e){
     var b=e.target.closest?e.target.closest('.fbtn'):null;
-    if(!b)return;
-    e.stopPropagation();
-    var k=b.getAttribute('data-fk');
-    if(FP.k===k){closeFilterPanel();return}
-    openFilterPanel(k,b);
+    if(b){
+      e.stopPropagation();
+      var fk=b.getAttribute('data-fk');
+      if(FP.k===fk){closeFilterPanel();return}
+      openFilterPanel(fk,b);
+      return;
+    }
+    var th=e.target.closest?e.target.closest('th'):null;
+    if(!th)return;
+    var k=th.getAttribute('data-k');
+    if(!k)return;
+    if(state.sort&&state.sort.k===k){
+      if(state.sort.dir>0)state.sort={k:k,dir:-1};
+      else state.sort={k:'',dir:1};
+    }else state.sort={k:k,dir:1};
+    state.page=1;renderTable();
   });
 })();
 /* 单击单元格复制 */
